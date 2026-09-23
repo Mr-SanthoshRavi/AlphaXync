@@ -72,7 +72,24 @@ export async function connectWhatsApp(req: Request, res: Response, next: NextFun
       });
     }
 
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
     const baileys = getBaileysWhatsAppProvider();
+
+    // In Vercel serverless, Baileys WebSocket cannot run 24/7 in an ephemeral lambda
+    if (isServerless && (!baileys || baileys.getConnectionState() === 'NOT_CONNECTED')) {
+      // Try initializing, but if library is missing or serverless, return clear guidance
+      await baileys.initialize().catch(() => {});
+      if (!baileys.getQrDataUrl() && baileys.getConnectionState() !== 'CONNECTED') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAILEYS_SERVERLESS_LIMITATION',
+            message: 'WhatsApp Baileys Web (QR scan) requires a persistent 24/7 background Node.js server (Render / Railway / VPS) because Vercel Serverless terminates after each request. For Vercel, please set WHATSAPP_PROVIDER=cloud_api (Official Meta Cloud API) or WHATSAPP_PROVIDER=mock (Simulation) in Vercel Environment Variables.'
+          }
+        });
+      }
+    }
+
     // Initialize in background if not already connected
     baileys.initialize().catch((err) => {
       logger.error('BAILEYS_INIT_ERROR', err.message);

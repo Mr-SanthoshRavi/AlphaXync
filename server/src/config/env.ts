@@ -63,6 +63,8 @@ export function isMockMode(): boolean {
   return env.APP_MODE === 'mock' ||
          env.USE_MOCK_PROVIDERS === true ||
          process.env.APP_MODE === 'mock' ||
-         process.env.USE_MOCK_PROVIDERS === 'true';
+         process.env.USE_MOCK_PROVIDERS === 'true' ||
+         process.env.WHATSAPP_PROVIDER === 'mock' ||
+         env.WHATSAPP_PROVIDER === 'mock';
 }
 
