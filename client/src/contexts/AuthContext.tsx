@@ -48,6 +48,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSetupRequired: boolean;
+  dbError: string | null;
   login: (email: string, password: string, captchaToken?: string) => Promise<any>;
   verifyLoginOtp: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -63,13 +64,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [institution, setInstitution] = useState<InstitutionProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSetupRequired, setIsSetupRequired] = useState<boolean>(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   const checkSetupStatus = useCallback(async (): Promise<boolean> => {
     try {
       const res = await api.getSetupStatus();
       setIsSetupRequired(Boolean(res?.setupRequired));
+      setDbError(null);
       return Boolean(res?.setupRequired);
-    } catch {
+    } catch (err: any) {
+      if (err?.code === 'DATABASE_UNAVAILABLE' || err?.status === 503) {
+        setDbError(err?.message || 'Database connection failed. Please ensure MONGODB_URI is set in Vercel Environment Variables.');
+      }
       return false;
     }
   }, []);
@@ -81,15 +87,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user);
         setInstitution(data.institution || null);
         setIsSetupRequired(false);
+        setDbError(null);
       } else {
         setUser(null);
         setInstitution(null);
         await checkSetupStatus();
       }
-    } catch {
+    } catch (err: any) {
       setUser(null);
       setInstitution(null);
-      await checkSetupStatus();
+      if (err?.code === 'DATABASE_UNAVAILABLE' || err?.status === 503) {
+        setDbError(err?.message || 'Database connection failed. Please ensure MONGODB_URI is set in Vercel Environment Variables.');
+      } else {
+        await checkSetupStatus();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -142,6 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         isLoading,
         isSetupRequired,
+        dbError,
         login,
         verifyLoginOtp,
         logout,

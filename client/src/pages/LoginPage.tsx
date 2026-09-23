@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { GoogleRecaptcha } from '../components/auth/GoogleRecaptcha';
+import { VisualCaptchaModal } from '../components/auth/VisualCaptchaModal';
+import { CaptchaTriggerCard } from '../components/auth/CaptchaTriggerCard';
 
 interface LoginPageProps {
   onGoToSetup?: () => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
-  const { login, verifyLoginOtp, isSetupRequired } = useAuth();
+  const { login, verifyLoginOtp, isSetupRequired, dbError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Google reCAPTCHA State
+  // Security Verification State
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [useVisualCaptcha, setUseVisualCaptcha] = useState(false);
+  const [showVisualModal, setShowVisualModal] = useState(false);
 
   // First-Time Login OTP State
   const [otpRequired, setOtpRequired] = useState(false);
@@ -29,7 +33,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
     }
 
     if (!captchaToken) {
-      setError('Please check the "I am not a robot" box to proceed.');
+      setError('Please complete the security verification challenge to proceed.');
       return;
     }
 
@@ -74,6 +78,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
       {/* Decorative ambient background blur */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Database Connection Alert Banner if cloud database is unreachable */}
+      {dbError && (
+        <div className="w-full max-w-md mb-4 p-4 rounded-xl bg-amber-500/15 border border-amber-500/35 text-on-surface flex items-start gap-3 shadow-sm animate-fade-in">
+          <span className="material-symbols-outlined text-amber-500 text-[24px] shrink-0 mt-0.5">database</span>
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-amber-600 dark:text-amber-400">Database Connection Required</p>
+            <p className="text-on-surface-variant text-xs mt-1 leading-relaxed">
+              Vercel backend cannot connect to MongoDB. Please configure <code className="px-1 py-0.5 rounded bg-black/10 font-mono text-[11px]">MONGODB_URI</code> in your Vercel Project Environment Variables and ensure MongoDB Atlas allows <code className="px-1 py-0.5 rounded bg-black/10 font-mono text-[11px]">0.0.0.0/0</code> IP access.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Setup Required Notice Banner if system is fresh */}
       {isSetupRequired && !otpRequired && (
@@ -183,14 +200,53 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
               </div>
             </div>
 
-            {/* Google reCAPTCHA v2 Security Widget */}
-            <GoogleRecaptcha
-              onVerify={(token) => {
-                setCaptchaToken(token);
-                setError(null);
-              }}
-              onExpire={() => setCaptchaToken(null)}
-            />
+            {/* Security Verification: Google reCAPTCHA or Visual Shield Challenge */}
+            {!useVisualCaptcha ? (
+              <div>
+                <GoogleRecaptcha
+                  onVerify={(token) => {
+                    setCaptchaToken(token);
+                    setError(null);
+                  }}
+                  onExpire={() => setCaptchaToken(null)}
+                  onFallbackRequest={() => {
+                    setUseVisualCaptcha(true);
+                    setShowVisualModal(true);
+                  }}
+                />
+                <div className="text-center mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseVisualCaptcha(true);
+                      setShowVisualModal(true);
+                    }}
+                    className="text-[11px] text-outline hover:text-primary transition-colors cursor-pointer"
+                  >
+                    Having trouble? Use Visual Image Challenge
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5 my-2">
+                <CaptchaTriggerCard
+                  isVerified={Boolean(captchaToken)}
+                  onTrigger={() => setShowVisualModal(true)}
+                />
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseVisualCaptcha(false);
+                      setCaptchaToken(null);
+                    }}
+                    className="text-[11px] text-outline hover:text-primary transition-colors cursor-pointer"
+                  >
+                    Switch back to Google reCAPTCHA
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -305,6 +361,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
           </div>
         </div>
       </div>
+
+      {/* Visual Captcha Challenge Modal */}
+      <VisualCaptchaModal
+        isOpen={showVisualModal}
+        onClose={() => setShowVisualModal(false)}
+        onSuccess={(token) => {
+          setCaptchaToken(token);
+          setError(null);
+          setShowVisualModal(false);
+        }}
+      />
     </div>
   );
 };

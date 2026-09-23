@@ -10,6 +10,11 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     return mongoose;
   }
 
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
+  if (isServerless && (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('localhost') || process.env.MONGODB_URI.includes('127.0.0.1'))) {
+    throw new Error('MONGODB_URI environment variable is missing in Vercel Settings (currently pointing to localhost). Please configure your MongoDB Atlas URI in Vercel.');
+  }
+
   // Attempt direct connection first
   try {
     const conn = await mongoose.connect(env.MONGODB_URI, {
