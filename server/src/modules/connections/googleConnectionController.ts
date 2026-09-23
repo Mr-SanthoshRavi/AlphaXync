@@ -102,6 +102,30 @@ export async function getValidGoogleCredentials(connection: any): Promise<{ acce
   };
 }
 
+function getGoogleRedirectUri(req: Request): string {
+  if (process.env.GOOGLE_REDIRECT_URI && !process.env.GOOGLE_REDIRECT_URI.includes('localhost')) {
+    return process.env.GOOGLE_REDIRECT_URI.trim();
+  }
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    return `${proto}://${host}/api/connections/google/callback`;
+  }
+  return env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/connections/google/callback';
+}
+
+function getFrontendBaseUrl(req: Request): string {
+  if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
+    return process.env.CLIENT_URL.trim();
+  }
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    return `${proto}://${host}`;
+  }
+  return process.env.CLIENT_URL || 'http://localhost:5173';
+}
+
 /**
  * 1. GET /api/connections/google/auth-url
  * Generates secure OAuth consent URL with state token.
@@ -109,16 +133,21 @@ export async function getValidGoogleCredentials(connection: any): Promise<{ acce
 export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = req.user!.institutionId;
-    const clientId = env.GOOGLE_CLIENT_ID || '';
-    const redirectUri = env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/connections/google/callback';
+    const clientId = (process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '').trim();
+    const redirectUri = getGoogleRedirectUri(req);
 
-    if (!clientId) {
-      throw new AppError('GOOGLE_CLIENT_ID_MISSING', 'Google Client ID is not configured in server environment', 500);
+    if (!clientId || clientId.startsWith('mock_')) {
+      throw new AppError(
+        'GOOGLE_CLIENT_ID_MISSING',
+        'Google Client ID is not configured in Vercel Environment Variables. Please add GOOGLE_CLIENT_ID in Vercel Project Settings.',
+        400
+      );
     }
 
     const statePayload = {
       institutionId,
       userId: req.user!.userId,
+      redirectUri,
       nonce: generateSecureToken(16)
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
@@ -135,7 +164,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFu
       scopes
     )}&access_type=offline&prompt=consent&state=${state}`;
 
-    logger.info('GOOGLE_OAUTH_STARTED', `Generated OAuth URL for institution ${institutionId}`);
+    logger.info('GOOGLE_OAUTH_STARTED', `Generated OAuth URL for institution ${institutionId} with redirect: ${redirectUri}`);
 
     return res.status(200).json({
       success: true,
@@ -157,7 +186,7 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
   try {
     const { code, state, error } = req.query;
 
-    const frontendBaseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const frontendBaseUrl = getFrontendBaseUrl(req);
 
     if (error) {
       logger.warn('GOOGLE_OAUTH_DENIED', `Google OAuth returned error: ${error}`);
@@ -177,6 +206,9 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
     }
 
     const institutionId = new Types.ObjectId(stateData.institutionId);
+    const callbackRedirectUri = stateData.redirectUri || getGoogleRedirectUri(req);
+    const clientId = (process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || '').trim();
 
     // Exchange authorization code for tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -184,9 +216,9 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code: String(code),
-        client_id: env.GOOGLE_CLIENT_ID || '',
-        client_secret: env.GOOGLE_CLIENT_SECRET || '',
-        redirect_uri: env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/connections/google/callback',
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: callbackRedirectUri,
         grant_type: 'authorization_code'
       })
     });
