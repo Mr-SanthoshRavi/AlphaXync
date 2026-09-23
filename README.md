@@ -1,4 +1,4 @@
-# CampusFlow Operations Platform (Phase 1 UI/UX Blueprint)
+ # CampusFlow Operations Platform (Phase 1 UI/UX Blueprint)
 
 ## 📌 Project Overview
 CampusFlow is a desktop-first, lightweight institution communication and fee automation platform designed for college and school operations (Cashier, Fee Management, Office Staff, Admin). It acts as an operational control center mirroring tabular data sources (Google Sheets / Excel) without forcing institutions into a full ERP.
