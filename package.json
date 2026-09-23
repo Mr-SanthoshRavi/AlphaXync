@@ -1,0 +1,22 @@
+{
+  "name": "alphaxync-operations-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "vercel-build": "npm run build --prefix client",
+    "test:server": "npm test --prefix server"
+  },
+  "dependencies": {
+    "cloudinary": "^2.11.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.0",
+    "concurrently": "^10.0.5"
+  }
+}

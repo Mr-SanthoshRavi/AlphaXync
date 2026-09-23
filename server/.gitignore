@@ -1,0 +1,24 @@
+# Node dependencies
+node_modules/
+
+# Environment files with live database & API keys
+.env
+.env.*
+*.env
+
+# Compiled outputs
+dist/
+
+# WhatsApp Baileys credentials
+.baileys_auth_info/
+sessions/
+auth_info_baileys/
+data/
+baileys_auth/
+
+# Local uploads
+uploads/
+
+# Logs
+logs/
+*.log

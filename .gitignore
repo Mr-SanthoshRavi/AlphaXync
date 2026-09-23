@@ -1,0 +1,52 @@
+# Node dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables & secrets (CRITICAL: Never commit to Git or public repo)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+*.env
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+client/dist/
+server/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# WhatsApp & Session persistence (Contains private auth keys)
+.baileys_auth_info/
+sessions/
+auth_info_baileys/
+server/data/
+data/
+baileys_auth/
+
+# File uploads & temporary storage
+uploads/
+temp/
+tmp/
+
+# IDE & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+Thumbs.db
