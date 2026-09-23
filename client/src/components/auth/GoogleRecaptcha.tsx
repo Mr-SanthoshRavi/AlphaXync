@@ -46,8 +46,11 @@ export const GoogleRecaptcha: React.FC<GoogleRecaptchaProps> = ({
         return;
       }
       try {
-        containerRef.current.innerHTML = '';
-        widgetIdRef.current = window.grecaptcha.render(containerRef.current, {
+        // Create an isolated sub-element so React never touches Google reCAPTCHA iframes
+        const targetDiv = document.createElement('div');
+        containerRef.current.appendChild(targetDiv);
+
+        widgetIdRef.current = window.grecaptcha.render(targetDiv, {
           sitekey: siteKey,
           callback: (token: string) => {
             if (isMounted) onVerify(token);

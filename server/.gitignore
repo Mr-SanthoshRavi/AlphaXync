@@ -4,7 +4,7 @@ node_modules/
 # Environment files with live database & API keys
 .env
 .env.*
-*.env
+*.env 
 
 # Compiled outputs
 dist/
