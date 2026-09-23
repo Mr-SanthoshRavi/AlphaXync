@@ -146,9 +146,24 @@ export const VisualCaptchaModal: React.FC<VisualCaptchaModalProps> = ({
               <p className="text-base font-bold text-on-surface mt-2">Verification Passed</p>
               <p className="text-xs text-on-surface-variant">AlphaXync Security Shield</p>
             </div>
+          ) : !challenge ? (
+            <div className="w-full aspect-square flex flex-col items-center justify-center gap-3 text-center p-4">
+              <span className="material-symbols-outlined text-4xl text-error">
+                error_outline
+              </span>
+              <p className="text-sm font-semibold text-on-surface">Challenge Failed to Load</p>
+              <p className="text-xs text-on-surface-variant max-w-[240px]">{error || 'Server error occurred'}</p>
+              <button
+                type="button"
+                onClick={loadChallenge}
+                className="mt-2 px-4 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                Retry Challenge
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 w-full aspect-square">
-              {challenge?.tiles.map((tile) => {
+              {challenge.tiles.map((tile) => {
                 const isSelected = selectedIndices.includes(tile.id);
                 return (
                   <button

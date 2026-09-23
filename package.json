@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.24",
+    "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.6",
@@ -24,6 +25,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
+    "pino": "^9.2.0",
     "qrcode": "^1.5.4",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"

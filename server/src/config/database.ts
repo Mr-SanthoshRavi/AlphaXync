@@ -13,15 +13,16 @@ export async function connectDatabase(): Promise<typeof mongoose> {
   // Attempt direct connection first
   try {
     const conn = await mongoose.connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 3000
+      serverSelectionTimeoutMS: 8000
     });
     logger.info('DATABASE_CONNECTED', `Connected to MongoDB at ${env.MONGODB_URI}`);
     return conn;
   } catch (error: any) {
     logger.warn('DATABASE_PRIMARY_FAILED', `Could not connect to ${env.MONGODB_URI}: ${error.message}. Checking in-memory fallback...`);
     
-    // In development or test, fallback to MongoMemoryServer
-    if (env.NODE_ENV !== 'production') {
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
+    // In local development or test (and NOT in serverless lambda), fallback to MongoMemoryServer
+    if (env.NODE_ENV !== 'production' && !isServerless) {
       try {
         const { MongoMemoryServer } = await import('mongodb-memory-server');
         mongoMemoryServerInstance = await MongoMemoryServer.create();

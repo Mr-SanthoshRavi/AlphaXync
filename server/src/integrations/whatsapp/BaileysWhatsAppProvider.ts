@@ -1,11 +1,23 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  WASocket,
-  ConnectionState,
-  proto,
-  Browsers
-} from '@whiskeysockets/baileys';
+// Safe lazy resolution of @whiskeysockets/baileys to avoid serverless runtime / sharp crashes
+let _baileysModule: any = null;
+function getBaileysModule(): any {
+  if (!_baileysModule) {
+    try {
+      // Dynamic require avoids static bundler tracing on Vercel/esbuild
+      const req = (globalThis as any).__non_webpack_require__ || require;
+      const pkgName = '@whiskeysockets/' + 'baileys';
+      _baileysModule = req(pkgName);
+    } catch (e: any) {
+      return null;
+    }
+  }
+  return _baileysModule;
+}
+
+type WASocket = any;
+type ConnectionState = any;
+type proto = any;
+
 import path from 'path';
 import fs from 'fs';
 import QRCode from 'qrcode';
@@ -52,9 +64,9 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isExplicitDisconnect = false;
-  private sentMessageCache = new Map<string, proto.IMessage>();
+  private sentMessageCache = new Map<string, any>();
 
-  private cacheSentMessage(id: string, message: proto.IMessage) {
+  private cacheSentMessage(id: string, message: any) {
     if (this.sentMessageCache.size > 2000) {
       const firstKey = this.sentMessageCache.keys().next().value;
       if (firstKey) this.sentMessageCache.delete(firstKey);
@@ -115,6 +127,19 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
       return;
     }
 
+    const baileys = getBaileysModule();
+    if (!baileys) {
+      this.state = 'NOT_CONNECTED';
+      this.lastError = 'Baileys WhatsApp library is unavailable in this environment.';
+      logger.warn('BAILEYS_UNAVAILABLE', 'WhatsApp Baileys socket is inactive in serverless runtime.');
+      return;
+    }
+
+    const makeWASocket = baileys.default || baileys.makeWASocket;
+    const useMultiFileAuthState = baileys.useMultiFileAuthState;
+    const Browsers = baileys.Browsers;
+    const DisconnectReason = baileys.DisconnectReason || { loggedOut: 401 };
+
     try {
       this.state = 'CONNECTING';
       this.lastError = null;
@@ -124,10 +149,10 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }) as any,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers ? Browsers.ubuntu('Chrome') : undefined,
         syncFullHistory: false,
         markOnlineOnConnect: true,
-        getMessage: async (key: proto.IMessageKey): Promise<proto.IMessage | undefined> => {
+        getMessage: async (key: any): Promise<any | undefined> => {
           if (key.id && this.sentMessageCache.has(key.id)) {
             return this.sentMessageCache.get(key.id);
           }
@@ -237,7 +262,7 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
       });
 
       // Handle Inbound Messages -> Complaints / Helpdesk Ticket Creation (Module 4)
-      this.socket.ev.on('messages.upsert', async (msgUpdate) => {
+      this.socket.ev.on('messages.upsert', async (msgUpdate: any) => {
         for (const msg of msgUpdate.messages) {
           if (msg.key?.id && msg.message) {
             this.cacheSentMessage(msg.key.id, msg.message);

@@ -44,15 +44,17 @@ const envSchema = z.object({
 
 const parsed = envSchema.safeParse(process.env);
 
+let envData: z.infer<typeof envSchema>;
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:', parsed.error.format());
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION) {
-    throw new Error(`Invalid environment variables: ${JSON.stringify(parsed.error.format())}`);
-  }
-  process.exit(1);
+  // In serverless / production, fallback safely to defaults instead of crashing module import
+  const fallback = envSchema.safeParse({});
+  envData = fallback.success ? fallback.data : (process.env as any);
+} else {
+  envData = parsed.data;
 }
 
-export const env = parsed.data;
+export const env = envData;
 
 export function isMockMode(): boolean {
   return env.APP_MODE === 'mock' ||
