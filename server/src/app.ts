@@ -70,8 +70,8 @@ export function createApp() {
   // Static uploads directory for media flyers & invitations
   app.use('/uploads', express.static(require('path').join(process.cwd(), 'uploads')));
 
-  // Health Endpoint
-  app.get('/health', (req: Request, res: Response) => {
+  // Health Endpoints
+  app.get(['/health', '/api/health'], (req: Request, res: Response) => {
     const isDbConnected = mongoose.connection.readyState === 1;
     return res.status(200).json({
       status: 'healthy',

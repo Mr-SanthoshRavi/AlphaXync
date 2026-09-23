@@ -63,9 +63,25 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
   }
 
   constructor(sessionName = 'default') {
-    this.authDir = path.resolve(process.cwd(), 'data', 'baileys_auth', sessionName);
-    if (!fs.existsSync(this.authDir)) {
-      fs.mkdirSync(this.authDir, { recursive: true });
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
+    const baseDir = isServerless
+      ? path.join('/tmp', 'data', 'baileys_auth')
+      : path.resolve(process.cwd(), 'data', 'baileys_auth');
+    this.authDir = path.join(baseDir, sessionName);
+    try {
+      if (!fs.existsSync(this.authDir)) {
+        fs.mkdirSync(this.authDir, { recursive: true });
+      }
+    } catch (e: any) {
+      // In read-only or restricted environments, fallback to /tmp
+      try {
+        this.authDir = path.join('/tmp', 'data', 'baileys_auth', sessionName);
+        if (!fs.existsSync(this.authDir)) {
+          fs.mkdirSync(this.authDir, { recursive: true });
+        }
+      } catch (inner) {
+        console.warn('Baileys: could not create auth directory:', inner);
+      }
     }
   }
 

@@ -9,10 +9,12 @@ import { signAccessToken, signRefreshToken } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { logger } from '../../utils/logger';
 import { AuditLog } from '../../models/AuditLog';
+import { captchaService } from './captchaService';
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
+  captchaToken: z.string().optional()
 });
 
 const setupSchema = z.object({
@@ -25,7 +27,20 @@ const setupSchema = z.object({
 
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email, password, captchaToken } = loginSchema.parse(req.body);
+
+    // Enforce CAPTCHA security challenge (exempt only during unit tests)
+    const isTest = process.env.NODE_ENV === 'test';
+    if (!isTest) {
+      const isCaptchaValid = captchaService.verifyCaptchaVerificationToken(captchaToken);
+      if (!isCaptchaValid) {
+        throw new AppError(
+          'CAPTCHA_REQUIRED',
+          'Security verification required. Please complete the CAPTCHA image challenge to proceed.',
+          403
+        );
+      }
+    }
 
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {

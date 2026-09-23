@@ -84,8 +84,23 @@ export const api = {
   resendSetupOtp: (email: string) =>
     request<any>('/auth/setup/resend-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   getMe: () => request<any>('/auth/me'),
-  login: (email: string, password: string) =>
-    request<any>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  getCaptchaChallenge: () =>
+    request<{
+      challengeId: string;
+      targetCategory: string;
+      targetLabel: string;
+      prompt: string;
+      targetIconSvg: string;
+      tiles: Array<{ id: number; category: string; svg: string }>;
+      challengeToken: string;
+    }>('/auth/captcha/challenge'),
+  verifyCaptcha: (challengeToken: string, selectedIndices: number[]) =>
+    request<{ verified: boolean; captchaToken: string }>('/auth/captcha/verify', {
+      method: 'POST',
+      body: JSON.stringify({ challengeToken, selectedIndices })
+    }),
+  login: (email: string, password: string, captchaToken?: string) =>
+    request<any>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, captchaToken }) }),
   verifyLoginOtp: (email: string, otp: string) =>
     request<any>('/auth/verify-login-otp', { method: 'POST', body: JSON.stringify({ email, otp }) }),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),

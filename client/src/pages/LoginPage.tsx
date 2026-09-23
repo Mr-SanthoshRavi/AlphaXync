@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { VisualCaptchaModal } from '../components/auth/VisualCaptchaModal';
+import { CaptchaTriggerCard } from '../components/auth/CaptchaTriggerCard';
 
 interface LoginPageProps {
   onGoToSetup?: () => void;
@@ -13,6 +15,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // CAPTCHA Challenge State
+  const [captchaModalOpen, setCaptchaModalOpen] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
   // First-Time Login OTP State
   const [otpRequired, setOtpRequired] = useState(false);
   const [otp, setOtp] = useState('');
@@ -24,16 +30,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
       return;
     }
 
+    if (!captchaToken) {
+      setCaptchaModalOpen(true);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const res = await login(email.trim(), password);
+      const res = await login(email.trim(), password, captchaToken);
       if (res?.requiresOtp) {
         setOtpRequired(true);
         setOtp('');
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please verify credentials.');
+      if (err?.code === 'CAPTCHA_REQUIRED' || err?.code === 'CAPTCHA_VERIFICATION_FAILED') {
+        setCaptchaToken(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -171,6 +185,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
               </div>
             </div>
 
+            {/* Visual Grid CAPTCHA Security Card */}
+            <CaptchaTriggerCard
+              isVerified={!!captchaToken}
+              onTrigger={() => setCaptchaModalOpen(true)}
+              disabled={loading}
+            />
+
             <button
               type="submit"
               disabled={loading}
@@ -284,6 +305,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
           </div>
         </div>
       </div>
+
+      {/* Visual Grid CAPTCHA Modal */}
+      <VisualCaptchaModal
+        isOpen={captchaModalOpen}
+        onClose={() => setCaptchaModalOpen(false)}
+        onSuccess={(token) => {
+          setCaptchaToken(token);
+          setError(null);
+        }}
+      />
     </div>
   );
 };

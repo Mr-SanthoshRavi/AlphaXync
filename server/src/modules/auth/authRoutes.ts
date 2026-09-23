@@ -14,10 +14,15 @@ import {
   updateStaffUser,
   deleteStaffUser
 } from './authController';
+import { getCaptchaChallenge, verifyCaptchaChallenge } from './captchaController';
 import { authenticate, requireAdmin } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
+
+// CAPTCHA Security Challenge
+router.get('/captcha/challenge', getCaptchaChallenge);
+router.post('/captcha/verify', authLimiter, verifyCaptchaChallenge);
 
 // Authentication Core
 router.post('/login', authLimiter, login);

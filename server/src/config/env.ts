@@ -46,6 +46,9 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:', parsed.error.format());
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION) {
+    throw new Error(`Invalid environment variables: ${JSON.stringify(parsed.error.format())}`);
+  }
   process.exit(1);
 }
 

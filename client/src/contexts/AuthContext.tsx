@@ -48,7 +48,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSetupRequired: boolean;
-  login: (email: string, password: string) => Promise<any>;
+  login: (email: string, password: string, captchaToken?: string) => Promise<any>;
   verifyLoginOtp: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
@@ -99,8 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshAuth();
   }, [refreshAuth]);
 
-  const login = async (email: string, password: string): Promise<any> => {
-    const data = await api.login(email, password);
+  const login = async (email: string, password: string, captchaToken?: string): Promise<any> => {
+    const data = await api.login(email, password, captchaToken);
     if (data?.requiresOtp) {
       return data;
     }
