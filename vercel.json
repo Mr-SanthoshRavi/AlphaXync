@@ -4,7 +4,7 @@
   "framework": "vite",
   "buildCommand": "npm run build:client",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install && npm --prefix client install && npm --prefix server install",
+  "installCommand": "npm install --include=dev && npm --prefix client install --include=dev && npm --prefix server install --include=dev",
   "rewrites": [
     {
       "source": "/api/(.*)",
