@@ -10,17 +10,27 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     return mongoose;
   }
 
+  const resolvedUri = (
+    process.env.MONGODB_URI ||
+    process.env.MONGO_URI ||
+    process.env.DATABASE_URL ||
+    process.env.MONGODB_URL ||
+    process.env.mongodb_uri ||
+    env.MONGODB_URI ||
+    ''
+  ).trim().replace(/^["']|["']$/g, '');
+
   const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
-  if (isServerless && (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('localhost') || process.env.MONGODB_URI.includes('127.0.0.1'))) {
-    throw new Error('MONGODB_URI environment variable is missing in Vercel Settings (currently pointing to localhost). Please configure your MongoDB Atlas URI in Vercel.');
+  if (isServerless && (!resolvedUri || resolvedUri.includes('localhost') || resolvedUri.includes('127.0.0.1'))) {
+    throw new Error('MONGODB_URI environment variable is missing in Vercel Settings (currently pointing to localhost). Please configure your MongoDB Atlas URI in Vercel Settings -> Environment Variables and click Redeploy.');
   }
 
   // Attempt direct connection first
   try {
-    const conn = await mongoose.connect(env.MONGODB_URI, {
+    const conn = await mongoose.connect(resolvedUri, {
       serverSelectionTimeoutMS: 8000
     });
-    logger.info('DATABASE_CONNECTED', `Connected to MongoDB at ${env.MONGODB_URI}`);
+    logger.info('DATABASE_CONNECTED', `Connected to MongoDB at ${resolvedUri.split('@')[1] || resolvedUri}`);
     return conn;
   } catch (error: any) {
     logger.warn('DATABASE_PRIMARY_FAILED', `Could not connect to ${env.MONGODB_URI}: ${error.message}. Checking in-memory fallback...`);

@@ -73,11 +73,22 @@ export function createApp() {
   // Health Endpoints
   app.get(['/health', '/api/health'], (req: Request, res: Response) => {
     const isDbConnected = mongoose.connection.readyState === 1;
+    const rawUri = (
+      process.env.MONGODB_URI ||
+      process.env.MONGO_URI ||
+      process.env.DATABASE_URL ||
+      process.env.MONGODB_URL ||
+      ''
+    ).trim();
+
     return res.status(200).json({
       status: 'healthy',
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       database: isDbConnected ? 'connected' : 'disconnected',
+      hasMongoUri: Boolean(rawUri),
+      mongoUriType: rawUri ? (rawUri.startsWith('mongodb+srv://') ? 'atlas_srv' : rawUri.startsWith('mongodb://') ? 'standard' : 'unknown') : 'none',
+      isLocalhost: rawUri.includes('localhost') || rawUri.includes('127.0.0.1'),
       paymentMode: env.PAYMENT_MODE,
       environment: env.NODE_ENV
     });
