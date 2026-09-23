@@ -32,11 +32,11 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     // Enforce CAPTCHA security challenge (exempt only during unit tests)
     const isTest = process.env.NODE_ENV === 'test';
     if (!isTest) {
-      const isCaptchaValid = captchaService.verifyCaptchaVerificationToken(captchaToken);
+      const isCaptchaValid = await captchaService.verifyCaptchaVerificationToken(captchaToken);
       if (!isCaptchaValid) {
         throw new AppError(
           'CAPTCHA_REQUIRED',
-          'Security verification required. Please complete the CAPTCHA image challenge to proceed.',
+          'Security verification required. Please check the "I am not a robot" box.',
           403
         );
       }

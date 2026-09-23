@@ -39,14 +39,14 @@ async function runTest() {
   console.log(`   - Issued Verification Token: ${successRes.captchaToken.slice(0, 30)}...`);
 
   // 5. Test token verification
-  const isValid = captchaService.verifyCaptchaVerificationToken(successRes.captchaToken);
+  const isValid = await captchaService.verifyCaptchaVerificationToken(successRes.captchaToken);
   if (!isValid) {
     throw new Error('Expected verifyCaptchaVerificationToken to return true for issued token!');
   }
   console.log(`✅ Token Validation Passed: Valid token recognized.`);
 
   // 6. Test tampered token
-  const isTamperedValid = captchaService.verifyCaptchaVerificationToken(successRes.captchaToken + 'tamper');
+  const isTamperedValid = await captchaService.verifyCaptchaVerificationToken(successRes.captchaToken + 'tamper');
   if (isTamperedValid) {
     throw new Error('Expected tampered token to be rejected!');
   }

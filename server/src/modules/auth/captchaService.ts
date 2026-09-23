@@ -523,16 +523,47 @@ export class CaptchaService {
   }
 
   /**
-   * Validates the final login captchaToken
+   * Validates the login captchaToken with Google reCAPTCHA or internal verification token
    */
-  verifyCaptchaVerificationToken(token?: string): boolean {
+  async verifyCaptchaVerificationToken(token?: string): Promise<boolean> {
     if (!token) return false;
-    const payload = verifyPayload<{
+
+    // 1. Check if token was signed locally by internal HMAC (fallback / offline)
+    const localPayload = verifyPayload<{
       verified: boolean;
       expiresAt: number;
     }>(token);
+    if (localPayload && localPayload.verified === true) {
+      return true;
+    }
 
-    return !!(payload && payload.verified === true);
+    // 2. Official Google reCAPTCHA v2 / v3 verification
+    try {
+      const secretKey = (env as any).RECAPTCHA_SECRET_KEY || '6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj';
+      const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          secret: secretKey,
+          response: token
+        })
+      });
+
+      const data: any = await response.json();
+      if (data && data.success === true) {
+        return true;
+      }
+
+      console.warn('Google reCAPTCHA verification failed:', data?.['error-codes'] || data);
+      return false;
+    } catch (err: any) {
+      console.error('Google reCAPTCHA verification request error:', err.message);
+      // In development or test, allow graceful fallback if Google API is unreachable
+      if (env.NODE_ENV !== 'production') {
+        return true;
+      }
+      return false;
+    }
   }
 }
 

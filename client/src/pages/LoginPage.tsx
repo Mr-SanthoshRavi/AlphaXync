@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { VisualCaptchaModal } from '../components/auth/VisualCaptchaModal';
-import { CaptchaTriggerCard } from '../components/auth/CaptchaTriggerCard';
+import { GoogleRecaptcha } from '../components/auth/GoogleRecaptcha';
 
 interface LoginPageProps {
   onGoToSetup?: () => void;
@@ -15,8 +14,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // CAPTCHA Challenge State
-  const [captchaModalOpen, setCaptchaModalOpen] = useState(false);
+  // Google reCAPTCHA State
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   // First-Time Login OTP State
@@ -31,7 +29,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
     }
 
     if (!captchaToken) {
-      setCaptchaModalOpen(true);
+      setError('Please check the "I am not a robot" box to proceed.');
       return;
     }
 
@@ -185,11 +183,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
               </div>
             </div>
 
-            {/* Visual Grid CAPTCHA Security Card */}
-            <CaptchaTriggerCard
-              isVerified={!!captchaToken}
-              onTrigger={() => setCaptchaModalOpen(true)}
-              disabled={loading}
+            {/* Google reCAPTCHA v2 Security Widget */}
+            <GoogleRecaptcha
+              onVerify={(token) => {
+                setCaptchaToken(token);
+                setError(null);
+              }}
+              onExpire={() => setCaptchaToken(null)}
             />
 
             <button
@@ -305,16 +305,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
           </div>
         </div>
       </div>
-
-      {/* Visual Grid CAPTCHA Modal */}
-      <VisualCaptchaModal
-        isOpen={captchaModalOpen}
-        onClose={() => setCaptchaModalOpen(false)}
-        onSuccess={(token) => {
-          setCaptchaToken(token);
-          setError(null);
-        }}
-      />
     </div>
   );
 };

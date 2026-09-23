@@ -39,7 +39,10 @@ const envSchema = z.object({
   AI_PROVIDER_KEY: z.string().optional().default(''),
 
   APP_MODE: z.enum(['real', 'mock']).default('real'),
-  USE_MOCK_PROVIDERS: z.coerce.boolean().default(false)
+  USE_MOCK_PROVIDERS: z.coerce.boolean().default(false),
+
+  RECAPTCHA_SITE_KEY: z.string().optional().default('6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor'),
+  RECAPTCHA_SECRET_KEY: z.string().optional().default('6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj')
 });
 
 const parsed = envSchema.safeParse(process.env);
