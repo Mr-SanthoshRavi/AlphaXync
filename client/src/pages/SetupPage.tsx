@@ -133,61 +133,77 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col justify-center items-center px-4 py-12 select-none relative overflow-hidden">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col justify-center items-center px-4 py-10 select-none relative overflow-hidden">
       {/* Decorative ambient background blur */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-lg bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-8 relative z-10 transition-all">
+      <div className="w-full max-w-lg bg-white/95 backdrop-blur-2xl rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.12)] p-7 sm:p-9 relative z-10 transition-all">
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-on-primary font-bold text-2xl shadow-md shadow-primary/20 mb-3 tracking-tight">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-500/25 mb-3 tracking-tight">
             A
           </div>
-          <h1 className="font-headline-sm text-2xl font-bold text-on-surface">
-            {step === 'DETAILS' ? 'AlphaXync Initial Setup (Beta)' : 'Verify Administrator Email'}
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {step === 'DETAILS' ? 'AlphaXync Initial Setup' : 'Verify Administrator Email'}
           </h1>
-          <p className="text-on-surface-variant text-sm mt-1">
+          <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-sm">
             {step === 'DETAILS'
-              ? 'Configure your institution parameters and master administrator'
+              ? 'Configure your institutional workspace and master administrator'
               : `A 6-digit security code was dispatched to ${email}`}
           </p>
 
           {/* Progress Indicator */}
           <div className="flex items-center gap-2 mt-4">
-            <span className={`w-8 h-1.5 rounded-full transition-all ${step === 'DETAILS' ? 'bg-primary' : 'bg-primary/40'}`}></span>
-            <span className={`w-8 h-1.5 rounded-full transition-all ${step === 'OTP' ? 'bg-primary' : 'bg-outline-variant/40'}`}></span>
+            <span className={`h-1.5 rounded-full transition-all duration-300 ${step === 'DETAILS' ? 'w-10 bg-blue-600' : 'w-4 bg-blue-200'}`}></span>
+            <span className={`h-1.5 rounded-full transition-all duration-300 ${step === 'OTP' ? 'w-10 bg-blue-600' : 'w-4 bg-slate-200'}`}></span>
           </div>
         </div>
 
         {/* Success Alert */}
         {success && (
-          <div className="mb-6 p-4 rounded-xl bg-secondary-container/30 border border-secondary text-on-surface flex items-start gap-3 text-sm animate-fade-in">
-            <span className="material-symbols-outlined text-secondary text-[24px] shrink-0">check_circle</span>
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-3 text-sm animate-fade-in shadow-sm">
+            <span className="material-symbols-outlined text-emerald-600 text-[24px] shrink-0">check_circle</span>
             <div>
-              <p className="font-semibold text-secondary">Email Verified & System Initialized!</p>
-              <p className="text-xs text-on-surface-variant mt-0.5">Logging you in to the Operations Console...</p>
+              <p className="font-semibold text-emerald-900">Email Verified &amp; System Initialized!</p>
+              <p className="text-xs text-emerald-700 mt-0.5">Logging you in to the Operations Console...</p>
             </div>
           </div>
         )}
 
-        {/* Error Alert */}
+        {/* Error Alert with Smart Recovery Action */}
         {error && (
-          <div className="mb-6 p-3 rounded-xl bg-error-container/20 border border-error/40 text-error flex items-start gap-2.5 text-sm animate-shake">
-            <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
-            <div className="flex-1">{error}</div>
-            <button type="button" onClick={() => setError(null)} className="text-error/70 hover:text-error">
-              ✕
-            </button>
+          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex flex-col gap-2.5 text-sm animate-shake shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <span className="material-symbols-outlined text-[20px] text-rose-600 shrink-0 mt-0.5">error</span>
+              <div className="flex-1 font-medium leading-relaxed">{error}</div>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="text-rose-400 hover:text-rose-700 p-0.5 rounded border-0 outline-none focus:outline-none cursor-pointer bg-transparent"
+              >
+                ✕
+              </button>
+            </div>
+            {(error.toLowerCase().includes('already exists') || error.toLowerCase().includes('login')) && (
+              <button
+                type="button"
+                onClick={onGoToLogin}
+                className="self-start mt-1 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95 border-0 outline-none"
+              >
+                <span>Go to Login Now</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </button>
+            )}
           </div>
         )}
 
         {/* STEP 1: Details Form */}
         {step === 'DETAILS' && (
           <form onSubmit={handleSendOtp} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   Institution Name
                 </label>
                 <input
@@ -196,12 +212,12 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   value={institutionName}
                   onChange={(e) => setInstitutionName(e.target.value)}
                   placeholder="e.g. St. Xavier's College"
-                  className="w-full h-10.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                  className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   Institution Code
                 </label>
                 <input
@@ -210,13 +226,13 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   value={institutionCode}
                   onChange={(e) => setInstitutionCode(e.target.value.toUpperCase())}
                   placeholder="e.g. SXEC"
-                  className="w-full h-10.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm font-mono focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all uppercase"
+                  className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm font-mono placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all uppercase"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                 Admin Full Name
               </label>
               <input
@@ -225,34 +241,34 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
                 placeholder="e.g. Principal / Operations Dean"
-                className="w-full h-10.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                 Admin Work Email (OTP Delivered Here)
               </label>
               <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-outline text-[18px]">mail</span>
+                <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">mail</span>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@institution.edu or your Gmail"
-                  className="w-full h-10.5 pl-10 pr-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                  className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
-              <p className="text-[11px] text-on-surface-variant mt-1 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
-                <span>Protected by Resend Email verification service.</span>
+              <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>
+                <span>Protected by Resend OTP verification service.</span>
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   Password (min 6 chars)
                 </label>
                 <div className="relative flex items-center">
@@ -262,12 +278,12 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full h-10.5 px-3 pr-9 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                    className="w-full h-11 px-3.5 pr-10 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 text-outline hover:text-on-surface p-1 border-0 bg-transparent flex items-center justify-center cursor-pointer outline-none"
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-700 p-1.5 border-0 bg-transparent flex items-center justify-center cursor-pointer outline-none focus:outline-none focus:ring-0"
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     <span className="material-symbols-outlined text-[19px]">
@@ -278,7 +294,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   Confirm Password
                 </label>
                 <input
@@ -287,7 +303,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-10.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                  className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
             </div>
@@ -296,7 +312,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
               <button
                 type="submit"
                 disabled={loading || success}
-                className="w-full h-11 bg-primary hover:bg-primary/90 text-on-primary font-semibold text-sm rounded-xl shadow-md shadow-primary/20 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+                className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer border-0 outline-none"
               >
                 {loading ? (
                   <>
@@ -312,13 +328,15 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
               </button>
             </div>
 
-            <div className="text-center pt-2">
+            <div className="text-center pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={onGoToLogin}
-                className="text-xs text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50/70 transition-all border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer appearance-none bg-transparent"
               >
-                Already have an initialized account? <span className="font-semibold underline">Back to Login</span>
+                <span>Already have an initialized account?</span>
+                <span className="font-semibold text-blue-600 underline">Back to Login</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
               </button>
             </div>
           </form>
@@ -327,16 +345,16 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
         {/* STEP 2: Resend Email OTP Verification */}
         {step === 'OTP' && (
           <form onSubmit={handleVerifyOtp} className="space-y-5 animate-fade-in">
-            <div className="bg-surface-container-low/70 border border-outline-variant/30 rounded-xl p-4 text-center">
-              <span className="material-symbols-outlined text-primary text-[32px] mb-1">mark_email_read</span>
-              <p className="text-xs text-on-surface-variant">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center">
+              <span className="material-symbols-outlined text-blue-600 text-[32px] mb-1">mark_email_read</span>
+              <p className="text-xs text-slate-500">
                 Enter the 6-digit verification code sent to:
               </p>
-              <p className="font-semibold text-sm text-on-surface font-mono mt-0.5">{email}</p>
+              <p className="font-semibold text-sm text-slate-900 font-mono mt-0.5">{email}</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-center mb-2">
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider text-center mb-2">
                 6-Digit Security Code
               </label>
               <input
@@ -347,9 +365,9 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="• • • • • •"
-                className="w-full h-14 text-center text-3xl font-mono font-bold tracking-[10px] rounded-xl bg-surface-container-low border-2 border-primary/40 focus:border-primary text-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all shadow-inner"
+                className="w-full h-14 text-center text-3xl font-mono font-bold tracking-[10px] rounded-2xl bg-slate-50 border-2 border-blue-500/40 focus:border-blue-600 text-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
               />
-              <p className="text-[11px] text-center text-on-surface-variant mt-2">
+              <p className="text-[11px] text-center text-slate-500 mt-2">
                 ⏱️ Code valid for 10 minutes. Check your Spam folder if not received.
               </p>
             </div>
@@ -361,7 +379,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   setStep('DETAILS');
                   setError(null);
                 }}
-                className="text-on-surface-variant hover:text-on-surface flex items-center gap-1 font-medium cursor-pointer"
+                className="text-slate-600 hover:text-slate-900 flex items-center gap-1 font-medium cursor-pointer border-0 outline-none bg-transparent"
               >
                 <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                 <span>Edit Details</span>
@@ -371,8 +389,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                 type="button"
                 onClick={handleResend}
                 disabled={!canResend || loading}
-                className={`font-semibold cursor-pointer transition-colors ${
-                  canResend ? 'text-primary hover:underline' : 'text-outline cursor-not-allowed'
+                className={`font-semibold cursor-pointer border-0 outline-none bg-transparent transition-colors ${
+                  canResend ? 'text-blue-600 hover:underline' : 'text-slate-400 cursor-not-allowed'
                 }`}
               >
                 {canResend ? 'Resend Code' : `Resend Code in ${resendCooldown}s`}
@@ -383,7 +401,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6 || success}
-                className="w-full h-11 bg-primary hover:bg-primary/90 text-on-primary font-semibold text-sm rounded-xl shadow-md shadow-primary/20 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+                className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer border-0 outline-none"
               >
                 {loading ? (
                   <>
@@ -396,6 +414,16 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                     <span>Verify &amp; Activate Institution</span>
                   </>
                 )}
+              </button>
+            </div>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={onGoToLogin}
+                className="text-xs text-slate-500 hover:text-blue-600 transition-colors cursor-pointer border-0 outline-none bg-transparent"
+              >
+                Already have an initialized account? <span className="font-semibold text-blue-600 underline">Back to Login</span>
               </button>
             </div>
           </form>

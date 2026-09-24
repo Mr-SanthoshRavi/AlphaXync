@@ -74,18 +74,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col justify-center items-center px-4 select-none relative overflow-hidden">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col justify-center items-center px-4 py-10 select-none relative overflow-hidden">
       {/* Decorative ambient background blur */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Database Connection Alert Banner if cloud database is unreachable */}
       {dbError && (
-        <div className="w-full max-w-md mb-4 p-4 rounded-xl bg-amber-500/15 border border-amber-500/35 text-on-surface flex items-start gap-3 shadow-sm animate-fade-in">
-          <span className="material-symbols-outlined text-amber-500 text-[24px] shrink-0 mt-0.5">database</span>
+        <div className="w-full max-w-md mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-sm animate-fade-in">
+          <span className="material-symbols-outlined text-amber-600 text-[24px] shrink-0 mt-0.5">database</span>
           <div className="flex-1 text-sm">
-            <p className="font-semibold text-amber-600 dark:text-amber-400">Database Connection Required</p>
-            <p className="text-on-surface-variant text-xs mt-1 leading-relaxed">
+            <p className="font-semibold text-amber-900">Database Connection Required</p>
+            <p className="text-amber-800 text-xs mt-1 leading-relaxed">
               Vercel backend cannot connect to MongoDB. Please configure <code className="px-1 py-0.5 rounded bg-black/10 font-mono text-[11px]">MONGODB_URI</code> in your Vercel Project Environment Variables and ensure MongoDB Atlas allows <code className="px-1 py-0.5 rounded bg-black/10 font-mono text-[11px]">0.0.0.0/0</code> IP access.
             </p>
           </div>
@@ -94,18 +94,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
 
       {/* Setup Required Notice Banner if system is fresh */}
       {isSetupRequired && !otpRequired && (
-        <div className="w-full max-w-md mb-6 p-4 rounded-xl bg-secondary-container/20 border border-secondary/30 text-on-surface flex items-start gap-3 shadow-sm animate-fade-in">
-          <span className="material-symbols-outlined text-secondary text-[22px] shrink-0 mt-0.5">info</span>
+        <div className="w-full max-w-md mb-5 p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 flex items-start gap-3 shadow-sm animate-fade-in">
+          <span className="material-symbols-outlined text-blue-600 text-[22px] shrink-0 mt-0.5">info</span>
           <div className="flex-1 text-sm">
-            <p className="font-semibold text-on-surface">Initial Setup Required</p>
-            <p className="text-on-surface-variant text-xs mt-0.5">
+            <p className="font-semibold text-blue-900">Initial Setup Required</p>
+            <p className="text-blue-800 text-xs mt-0.5">
               No institution administrators are configured yet. Please initialize your institution first.
             </p>
             {onGoToSetup && (
               <button
                 type="button"
                 onClick={onGoToSetup}
-                className="mt-2 text-xs font-semibold text-secondary hover:underline inline-flex items-center gap-1 cursor-pointer"
+                className="mt-2 text-xs font-semibold text-blue-600 hover:underline inline-flex items-center gap-1 cursor-pointer border-0 outline-none bg-transparent"
               >
                 Initialize Institution Setup →
               </button>
@@ -115,35 +115,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
       )}
 
       {/* Login Card */}
-      <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-8 relative z-10 transition-all">
+      <div className="w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.12)] p-7 sm:p-9 relative z-10 transition-all">
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-7">
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-on-primary font-bold text-2xl shadow-md shadow-primary/20 mb-3 tracking-tight">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-500/25 mb-3 tracking-tight">
             A
           </div>
           <div className="flex items-center gap-2 justify-center">
-            <h1 className="font-headline-sm text-2xl font-bold text-on-surface">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               {otpRequired ? 'Security Verification' : 'AlphaXync'}
             </h1>
             {!otpRequired && (
-              <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/25 text-primary font-data-mono text-[10px] font-bold uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-600 font-mono text-[10px] font-bold uppercase tracking-wider">
                 Beta
               </span>
             )}
           </div>
-          <p className="text-on-surface-variant text-sm mt-1">
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
             {otpRequired
               ? `First-time verification code sent to ${email}`
-              : 'Autonomous Institutional Operations & Protected Ledger (Beta Release)'}
+              : 'Autonomous Institutional Operations & Protected Ledger'}
           </p>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 p-3.5 rounded-xl bg-error-container/20 border border-error/40 text-error flex items-start gap-2.5 text-sm animate-shake">
-            <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
-            <div className="flex-1">{error}</div>
-            <button type="button" onClick={() => setError(null)} className="text-error/70 hover:text-error cursor-pointer">
+          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-2.5 text-sm animate-shake shadow-sm">
+            <span className="material-symbols-outlined text-[20px] text-rose-600 shrink-0 mt-0.5">error</span>
+            <div className="flex-1 font-medium leading-relaxed">{error}</div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-rose-400 hover:text-rose-700 p-0.5 rounded border-0 outline-none focus:outline-none cursor-pointer bg-transparent"
+            >
               ✕
             </button>
           </div>
@@ -151,13 +155,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
 
         {/* Normal Login Form */}
         {!otpRequired ? (
-          <form onSubmit={handleSubmit} className="space-y-4.5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                 Work Email Address
               </label>
               <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-outline text-[18px]">mail</span>
+                <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">mail</span>
                 <input
                   type="email"
                   required
@@ -165,19 +169,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                   placeholder="name@institution.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 placeholder:text-outline transition-all"
+                  className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   Password
                 </label>
               </div>
               <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-outline text-[18px]">lock</span>
+                <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">lock</span>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
@@ -185,15 +189,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-11 pl-10 pr-10 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 placeholder:text-outline transition-all"
+                  className="w-full h-11 pl-10 pr-10 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-3 text-outline hover:text-on-surface transition-colors cursor-pointer"
+                  className="absolute right-2.5 text-slate-400 hover:text-slate-700 p-1.5 border-0 bg-transparent flex items-center justify-center cursor-pointer outline-none focus:outline-none focus:ring-0"
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  <span className="material-symbols-outlined text-[18px]">
+                  <span className="material-symbols-outlined text-[19px]">
                     {showPassword ? 'visibility_off' : 'visibility'}
                   </span>
                 </button>
@@ -251,7 +255,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed mt-2 cursor-pointer active:scale-98"
+              className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer border-0 outline-none mt-2"
             >
               {loading ? (
                 <>
@@ -342,20 +346,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
         )}
 
         {/* Footer info / Setup link */}
-        <div className="mt-8 pt-6 border-t border-outline-variant/20 flex flex-col items-center gap-2 text-center text-xs text-on-surface-variant">
+        <div className="mt-7 pt-5 border-t border-slate-100 flex flex-col items-center gap-2 text-center text-xs text-slate-500">
           {onGoToSetup && !otpRequired ? (
             <div>
               <span>First time setup? </span>
               <button
                 type="button"
                 onClick={onGoToSetup}
-                className="text-primary font-semibold hover:underline cursor-pointer"
+                className="text-blue-600 font-semibold hover:underline cursor-pointer border-0 outline-none focus:outline-none focus:ring-0 bg-transparent"
               >
                 Initialize Institution Admin
               </button>
             </div>
           ) : null}
-          <div className="flex items-center gap-1.5 text-[11px] text-outline mt-1">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
             <span className="material-symbols-outlined text-[14px]">lock_clock</span>
             <span>Secured with Resend OTP Multi-Factor Verification</span>
           </div>

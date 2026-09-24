@@ -21,7 +21,7 @@ const AppShell: React.FC = () => {
   const [cashierMode, setCashierMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [liveEvent, setLiveEvent] = useState<string | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
+  const [authMode, setAuthMode] = useState<'LOGIN' | 'SETUP' | null>(null);
   const [mockMode, setMockMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('campusflow_sidebar_collapsed') === 'true';
@@ -160,10 +160,11 @@ const AppShell: React.FC = () => {
 
   // Unauthenticated Flow: Login or Initial Setup
   if (!isAuthenticated) {
-    if (showSetup || isSetupRequired) {
-      return <SetupPage onGoToLogin={() => setShowSetup(false)} />;
+    const effectiveMode = authMode ?? (isSetupRequired ? 'SETUP' : 'LOGIN');
+    if (effectiveMode === 'SETUP') {
+      return <SetupPage onGoToLogin={() => setAuthMode('LOGIN')} />;
     }
-    return <LoginPage onGoToSetup={() => setShowSetup(true)} />;
+    return <LoginPage onGoToSetup={() => setAuthMode('SETUP')} />;
   }
 
   const getTitle = () => {
