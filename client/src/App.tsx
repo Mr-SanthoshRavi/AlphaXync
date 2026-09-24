@@ -13,7 +13,7 @@ import { PublicPayPage } from './pages/PublicPayPage';
 import { LoginPage } from './pages/LoginPage';
 import { SetupPage } from './pages/SetupPage';
 import { AdminChatbot } from './components/AdminChatbot';
-import { api } from './lib/api';
+import { api, API_BASE } from './lib/api';
 
 const AppShell: React.FC = () => {
   const { isAuthenticated, isLoading, isSetupRequired, institution } = useAuth();
@@ -46,7 +46,7 @@ const AppShell: React.FC = () => {
 
     let eventSource: EventSource | null = null;
     try {
-      eventSource = new EventSource('/api/dashboard/live-stream');
+      eventSource = new EventSource(`${API_BASE}/dashboard/live-stream`, { withCredentials: true } as any);
 
       const handleUpdate = (type: string, data: any) => {
         window.dispatchEvent(new CustomEvent('campusflow:data-updated', { detail: { type, ...data } }));

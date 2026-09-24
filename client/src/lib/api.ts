@@ -3,7 +3,28 @@
  * Typed fetch client connecting to Express REST endpoints with credential handling.
  */
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+const rawApiUrl = ((import.meta as any).env?.VITE_API_URL || '').trim();
+export const API_BASE = rawApiUrl
+  ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api`)
+  : '/api';
+
+export function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem('alphaxync_jwt_token');
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredToken(token: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem('alphaxync_jwt_token', token);
+    } else {
+      localStorage.removeItem('alphaxync_jwt_token');
+    }
+  } catch {}
+}
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -35,9 +56,11 @@ export class ApiError extends Error {
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
-  const headers = {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   const response = await fetch(url, {
@@ -99,11 +122,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ challengeToken, selectedIndices })
     }),
-  login: (email: string, password: string, captchaToken?: string) =>
-    request<any>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, captchaToken }) }),
-  verifyLoginOtp: (email: string, otp: string) =>
-    request<any>('/auth/verify-login-otp', { method: 'POST', body: JSON.stringify({ email, otp }) }),
-  logout: () => request<any>('/auth/logout', { method: 'POST' }),
+  login: async (email: string, password: string, captchaToken?: string) => {
+    const res = await request<any>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, captchaToken }) });
+    if (res?.token) setStoredToken(res.token);
+    return res;
+  },
+  verifyLoginOtp: async (email: string, otp: string) => {
+    const res = await request<any>('/auth/verify-login-otp', { method: 'POST', body: JSON.stringify({ email, otp }) });
+    if (res?.token) setStoredToken(res.token);
+    return res;
+  },
+  logout: async () => {
+    try {
+      await request<any>('/auth/logout', { method: 'POST' });
+    } finally {
+      setStoredToken(null);
+    }
+  },
 
   // Staff Account Management (ADMIN-ONLY)
   getStaffUsers: () => request<{ users: any[] }>('/auth/staff'),

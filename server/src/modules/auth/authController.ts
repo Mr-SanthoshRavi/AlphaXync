@@ -25,6 +25,16 @@ const setupSchema = z.object({
   password: z.string().min(6)
 });
 
+function getAuthCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    maxAge: 8 * 60 * 60 * 1000
+  };
+}
+
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password, captchaToken } = loginSchema.parse(req.body);
@@ -122,18 +132,9 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     const accessToken = signAccessToken(tokenPayload);
     const refreshToken = signRefreshToken(tokenPayload);
 
-    res.cookie('alphaxync_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
-    res.cookie('campusflow_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    const cookieOpts = getAuthCookieOptions();
+    res.cookie('alphaxync_token', accessToken, cookieOpts);
+    res.cookie('campusflow_token', accessToken, cookieOpts);
 
     // Record login into AuditLog
     AuditLog.create({
@@ -217,18 +218,9 @@ export async function verifyLoginOtp(req: Request, res: Response, next: NextFunc
     const accessToken = signAccessToken(tokenPayload);
     const refreshToken = signRefreshToken(tokenPayload);
 
-    res.cookie('alphaxync_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
-    res.cookie('campusflow_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    const cookieOpts = getAuthCookieOptions();
+    res.cookie('alphaxync_token', accessToken, cookieOpts);
+    res.cookie('campusflow_token', accessToken, cookieOpts);
 
     logger.info('AUTH_STAFF_OTP_VERIFIED', `Staff ${user.email} verified OTP and logged in.`);
 
@@ -261,8 +253,14 @@ export async function verifyLoginOtp(req: Request, res: Response, next: NextFunc
 }
 
 export async function logout(req: Request, res: Response, next: NextFunction) {
-  res.clearCookie('alphaxync_token');
-  res.clearCookie('campusflow_token');
+  const isProd = process.env.NODE_ENV === 'production';
+  const clearOpts = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax'
+  };
+  res.clearCookie('alphaxync_token', clearOpts);
+  res.clearCookie('campusflow_token', clearOpts);
   return res.status(200).json({
     success: true,
     data: { message: 'Logged out successfully' }
@@ -446,18 +444,9 @@ export async function verifySetupOtp(req: Request, res: Response, next: NextFunc
     const accessToken = signAccessToken(tokenPayload);
     const refreshToken = signRefreshToken(tokenPayload);
 
-    res.cookie('alphaxync_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
-    res.cookie('campusflow_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    const cookieOpts = getAuthCookieOptions();
+    res.cookie('alphaxync_token', accessToken, cookieOpts);
+    res.cookie('campusflow_token', accessToken, cookieOpts);
 
     logger.info('SETUP_COMPLETED', `Admin created via Resend OTP: ${adminUser.email}`);
 
