@@ -140,6 +140,18 @@ export const api = {
     }
   },
 
+  // Password Reset Flow
+  sendForgotPasswordOtp: (email: string) =>
+    request<{ message: string; email: string }>('/auth/forgot-password/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
+    request<{ message: string }>('/auth/forgot-password/reset', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+
   // Staff Account Management (ADMIN-ONLY)
   getStaffUsers: () => request<{ users: any[] }>('/auth/staff'),
   createStaffUser: (data: {

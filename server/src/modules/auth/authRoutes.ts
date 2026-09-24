@@ -12,7 +12,9 @@ import {
   getStaffUsers,
   createStaffUser,
   updateStaffUser,
-  deleteStaffUser
+  deleteStaffUser,
+  sendForgotPasswordOtp,
+  verifyAndResetPassword
 } from './authController';
 import { getCaptchaChallenge, verifyCaptchaChallenge } from './captchaController';
 import { authenticate, requireAdmin } from '../../middleware/auth';
@@ -29,6 +31,10 @@ router.post('/login', authLimiter, login);
 router.post('/verify-login-otp', authLimiter, verifyLoginOtp);
 router.post('/logout', logout);
 router.get('/me', authenticate, getCurrentUser);
+
+// Password Reset Flow
+router.post('/forgot-password/send-otp', authLimiter, sendForgotPasswordOtp);
+router.post('/forgot-password/reset', authLimiter, verifyAndResetPassword);
 
 // Setup & Resend OTP Verification
 router.get('/setup-status', getSetupStatus);

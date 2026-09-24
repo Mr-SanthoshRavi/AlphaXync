@@ -93,16 +93,20 @@ export class ResendEmailService {
     }
   }
 
-  async sendOtpEmail(to: string, otp: string, purpose: 'INITIAL_SETUP' | 'STAFF_FIRST_LOGIN' | 'LOGIN_OTP', recipientName?: string): Promise<SendEmailResult> {
+  async sendOtpEmail(to: string, otp: string, purpose: 'INITIAL_SETUP' | 'STAFF_FIRST_LOGIN' | 'LOGIN_OTP' | 'PASSWORD_RESET', recipientName?: string): Promise<SendEmailResult> {
     const title = purpose === 'INITIAL_SETUP' 
       ? 'Verify Institution Admin Setup' 
       : purpose === 'STAFF_FIRST_LOGIN'
       ? 'Staff Account Security Verification'
+      : purpose === 'PASSWORD_RESET'
+      ? 'Reset Your AlphaXync Password'
       : 'AlphaXync Security Verification';
 
     const greeting = recipientName ? `Hello ${recipientName},` : 'Hello,';
     const subtext = purpose === 'INITIAL_SETUP'
       ? 'You are initializing your institution account on AlphaXync. Please use the verification code below to confirm your administrator email address.'
+      : purpose === 'PASSWORD_RESET'
+      ? 'You have requested to reset your password. Please use the 6-digit verification code below to securely reset your password.'
       : 'You are logging in to your AlphaXync Staff account for the first time. Please use the verification code below to verify your email and activate your session.';
 
     const html = `

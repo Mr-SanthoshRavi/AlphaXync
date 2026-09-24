@@ -874,3 +874,132 @@ export async function deleteStaffUser(req: Request, res: Response, next: NextFun
     next(error);
   }
 }
+
+/**
+ * Step 1: Send Password Reset OTP
+ */
+export async function sendForgotPasswordOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email } = z.object({
+      email: z.string().email()
+    }).parse(req.body);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      throw new AppError('USER_NOT_FOUND', 'No account registered with this email address.', 404);
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Invalidate existing reset OTPs
+    await VerificationOtp.deleteMany({ email: normalizedEmail, purpose: 'PASSWORD_RESET' });
+
+    await VerificationOtp.create({
+      email: normalizedEmail,
+      otp,
+      purpose: 'PASSWORD_RESET',
+      metadata: { userId: user._id.toString() },
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+    });
+
+    const emailResult = await resendService.sendOtpEmail(normalizedEmail, otp, 'PASSWORD_RESET', user.name);
+    if (!emailResult.success) {
+      throw new AppError('EMAIL_SEND_FAILED', `Failed to deliver reset code: ${emailResult.error}`, 502);
+    }
+
+    logger.info('PASSWORD_RESET_OTP_SENT', `Password reset OTP dispatched to ${normalizedEmail}`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: `Security code sent to ${normalizedEmail}`,
+        email: normalizedEmail
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Step 2: Verify Password Reset OTP and Set New Password
+ */
+export async function verifyAndResetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, otp, newPassword } = z.object({
+      email: z.string().email(),
+      otp: z.string().length(6),
+      newPassword: z.string().min(6)
+    }).parse(req.body);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const pending = await VerificationOtp.findOne({
+      email: normalizedEmail,
+      purpose: 'PASSWORD_RESET'
+    }).sort({ createdAt: -1 });
+
+    if (!pending) {
+      throw new AppError('OTP_EXPIRED', 'No pending password reset request found. Please request a new code.', 400);
+    }
+
+    if (new Date() > pending.expiresAt) {
+      await VerificationOtp.deleteMany({ email: normalizedEmail, purpose: 'PASSWORD_RESET' });
+      throw new AppError('OTP_EXPIRED', 'Verification code has expired. Please request a new code.', 400);
+    }
+
+    if (pending.attempts >= 5) {
+      await VerificationOtp.deleteMany({ email: normalizedEmail, purpose: 'PASSWORD_RESET' });
+      throw new AppError('TOO_MANY_ATTEMPTS', 'Too many invalid attempts. Please request a new code.', 429);
+    }
+
+    if (pending.otp !== otp.trim()) {
+      pending.attempts += 1;
+      await pending.save();
+      throw new AppError('INVALID_OTP', `Invalid code. ${5 - pending.attempts} attempts remaining.`, 400);
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    const user = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        passwordHash,
+        failedLoginAttempts: 0,
+        lockoutUntil: null
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      throw new AppError('USER_NOT_FOUND', 'User account not found.', 404);
+    }
+
+    // Clear reset OTPs
+    await VerificationOtp.deleteMany({ email: normalizedEmail, purpose: 'PASSWORD_RESET' });
+
+    await AuditLog.create({
+      institutionId: user.institutionId,
+      actorUserId: user._id,
+      actorRole: user.role,
+      action: 'PASSWORD_RESET',
+      entityType: 'USER',
+      entityId: user._id.toString(),
+      after: { email: user.email, resetVia: 'RESEND_EMAIL_OTP' }
+    }).catch(() => {});
+
+    logger.info('PASSWORD_RESET_SUCCESS', `Password successfully reset for ${user.email}`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'Password reset successfully. You can now sign in with your new password.'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

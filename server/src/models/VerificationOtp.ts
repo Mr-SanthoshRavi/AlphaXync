@@ -1,6 +1,6 @@
 import { Schema, model, Document } from 'mongoose';
 
-export type OtpPurpose = 'INITIAL_SETUP' | 'STAFF_FIRST_LOGIN' | 'LOGIN_OTP';
+export type OtpPurpose = 'INITIAL_SETUP' | 'STAFF_FIRST_LOGIN' | 'LOGIN_OTP' | 'PASSWORD_RESET';
 
 export interface IVerificationOtp extends Document {
   email: string;
@@ -19,7 +19,7 @@ const VerificationOtpSchema = new Schema<IVerificationOtp>(
     otp: { type: String, required: true, trim: true },
     purpose: { 
       type: String, 
-      enum: ['INITIAL_SETUP', 'STAFF_FIRST_LOGIN', 'LOGIN_OTP'], 
+      enum: ['INITIAL_SETUP', 'STAFF_FIRST_LOGIN', 'LOGIN_OTP', 'PASSWORD_RESET'], 
       required: true 
     },
     metadata: { type: Schema.Types.Mixed, default: {} },

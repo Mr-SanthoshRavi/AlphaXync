@@ -12,10 +12,10 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
   // Step State: 'DETAILS' -> 'OTP'
   const [step, setStep] = useState<'DETAILS' | 'OTP'>('DETAILS');
 
-  // Form Fields
-  const [institutionName, setInstitutionName] = useState('Alpha College');
-  const [institutionCode, setInstitutionCode] = useState('ALPHA');
-  const [adminName, setAdminName] = useState('Chief Administrator');
+  // Form Fields (Empty by default with clean placeholders)
+  const [institutionName, setInstitutionName] = useState('');
+  const [institutionCode, setInstitutionCode] = useState('');
+  const [adminName, setAdminName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -211,7 +211,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   required
                   value={institutionName}
                   onChange={(e) => setInstitutionName(e.target.value)}
-                  placeholder="e.g. St. Xavier's College"
+                  placeholder="Enter institution name (e.g. Alpha College)"
                   className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
@@ -225,7 +225,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   required
                   value={institutionCode}
                   onChange={(e) => setInstitutionCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. SXEC"
+                  placeholder="Enter code (e.g. ALPHA)"
                   className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm font-mono placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all uppercase"
                 />
               </div>
@@ -240,7 +240,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                 required
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
-                placeholder="e.g. Principal / Operations Dean"
+                placeholder="Enter administrator full name"
                 className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
               />
             </div>
@@ -256,7 +256,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@institution.edu or your Gmail"
+                  placeholder="Enter administrator work email"
                   className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
@@ -277,7 +277,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Create password (min 6 chars)"
                     className="w-full h-11 px-3.5 pr-10 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                   />
                   <button
@@ -302,7 +302,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onGoToLogin }) => {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Re-enter password"
                   className="w-full h-11 px-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 />
               </div>
