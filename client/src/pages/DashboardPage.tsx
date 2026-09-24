@@ -229,10 +229,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
           </div>
           <div className="mt-space-md pt-space-xs flex items-center justify-between bg-surface-container-low px-space-xs py-1 rounded">
             <span className="font-label-sm text-label-sm text-secondary font-medium">
-              Verified in Ledger
+              {cards.totalStudents > 0 ? 'Verified in Ledger' : 'Awaiting Ingestion'}
             </span>
             <span className="font-body-sm text-body-sm text-on-surface-variant">
-              {data?.syncHealth?.status === 'CONNECTED' ? 'Google Sheets Sync' : 'Direct DB'}
+              {data?.syncHealth?.status === 'CONNECTED' ? 'Spreadsheet Sync' : 'No Sheet Linked'}
             </span>
           </div>
         </div>

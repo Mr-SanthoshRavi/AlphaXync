@@ -70,6 +70,23 @@ const COLOR_PRESETS = [
   { name: 'Royal Violet', hex: '#581c87' }
 ];
 
+const BG_COLOR_PRESETS = [
+  { name: 'Pure White', hex: '#ffffff' },
+  { name: 'Warm Ivory', hex: '#fdfbf7' },
+  { name: 'Soft Ice', hex: '#f8fafc' },
+  { name: 'Sage Tint', hex: '#f0fdf4' },
+  { name: 'Lavender Mist', hex: '#faf5ff' },
+  { name: 'Dark Slate', hex: '#0f172a' }
+];
+
+const TEXT_COLOR_PRESETS = [
+  { name: 'Charcoal Deep', hex: '#111827' },
+  { name: 'Slate Gray', hex: '#374151' },
+  { name: 'Navy Midnight', hex: '#1e293b' },
+  { name: 'Dark Emerald', hex: '#064e3b' },
+  { name: 'Bright White', hex: '#f8fafc' }
+];
+
 const DUMMY_RECEIPT: ReceiptData = {
   receiptNumber: 'REC-ST2026-1005',
   studentName: 'Naveen P',
@@ -925,6 +942,45 @@ export const SettingsPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Subtitle Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Subtitle Text Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.headerSubtitleColor || '#4b5563'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, headerSubtitleColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.headerSubtitleColor || '#4b5563'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {TEXT_COLOR_PRESETS.map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, headerSubtitleColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.headerSubtitleColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Voucher Badge Text */}
                 <div>
                   <label className="text-xs font-medium text-on-surface block mb-1">
@@ -1170,17 +1226,253 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 3: Brand Colors, Typography & Footer */}
+              {/* Card 3: Receipt Paper Background & Glassmorphism Transparency */}
+              <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold text-on-surface flex items-center gap-2 border-b border-outline-variant/20 pb-2">
+                  <span className="material-symbols-outlined text-primary text-[18px]">wallpaper</span>
+                  <span>3. Receipt Paper Background & Transparency</span>
+                </h3>
+
+                {/* Card Background Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Receipt Paper Background Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.cardBgColor || '#ffffff'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, cardBgColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.cardBgColor || '#ffffff'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {BG_COLOR_PRESETS.map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, cardBgColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.cardBgColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Background Opacity / Transparency */}
+                <div>
+                  <div className="flex justify-between items-center text-xs font-medium text-on-surface mb-1.5">
+                    <label>Paper Opacity / Glassmorphism Transparency</label>
+                    <span className="font-mono px-2 py-0.5 rounded bg-surface-container text-primary font-bold text-[11px]">
+                      {Math.round((receiptForm.cardBgOpacity ?? 1.0) * 100)}% {receiptForm.cardBgOpacity && receiptForm.cardBgOpacity < 1.0 ? '(Frosted Glass)' : '(Solid)'}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.4}
+                    max={1.0}
+                    step={0.02}
+                    value={receiptForm.cardBgOpacity ?? 1.0}
+                    onChange={(e) =>
+                      setReceiptForm((prev) => ({ ...prev, cardBgOpacity: Number(e.target.value) }))
+                    }
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-on-surface-variant mt-0.5">
+                    <span>High Transparency (40%)</span>
+                    <span>Soft Glass (85%)</span>
+                    <span>Solid Opaque (100%)</span>
+                  </div>
+                </div>
+
+                {/* Card Outer Border Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Receipt Card Outer Border Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.cardBorderColor || '#e5e7eb'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, cardBorderColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.cardBorderColor || '#e5e7eb'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {[
+                        { name: 'Light Slate', hex: '#e5e7eb' },
+                        { name: 'Border Gray', hex: '#d1d5db' },
+                        { name: 'Brand Blue', hex: '#93c5fd' },
+                        { name: 'Emerald Soft', hex: '#a7f3d0' },
+                        { name: 'Charcoal Line', hex: '#374151' }
+                      ].map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, cardBorderColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.cardBorderColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Typography & Complete Text Colors */}
               <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-sm space-y-4">
                 <h3 className="text-sm font-bold text-on-surface flex items-center gap-2 border-b border-outline-variant/20 pb-2">
                   <span className="material-symbols-outlined text-primary text-[18px]">format_paint</span>
-                  <span>3. Accent Color, Typography & Signature</span>
+                  <span>4. Typography & Complete Text Colors</span>
+                </h3>
+
+                {/* Primary Body Text Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Primary Body Text Color (Student Names, Values, Paid Amounts)
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.textColor || '#1f2937'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, textColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.textColor || '#1f2937'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {TEXT_COLOR_PRESETS.map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, textColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.textColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Secondary / Label Text Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Secondary / Field Labels Text Color (Field Names, Dates, Descriptions)
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.secondaryTextColor || '#6b7280'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, secondaryTextColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.secondaryTextColor || '#6b7280'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {[
+                        { name: 'Muted Slate', hex: '#64748b' },
+                        { name: 'Neutral Gray', hex: '#6b7280' },
+                        { name: 'Soft Charcoal', hex: '#4b5563' },
+                        { name: 'Navy Tint', hex: '#475569' },
+                        { name: 'Silver Muted', hex: '#94a3b8' }
+                      ].map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, secondaryTextColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.secondaryTextColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body Font Size Slider */}
+                <div>
+                  <div className="flex justify-between items-center text-xs font-medium text-on-surface mb-1.5">
+                    <label>Receipt Base Font Size</label>
+                    <span className="font-mono px-2 py-0.5 rounded bg-surface-container text-primary font-bold text-[11px]">
+                      {receiptForm.bodyFontSize || 12}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={10}
+                    max={16}
+                    step={1}
+                    value={receiptForm.bodyFontSize || 12}
+                    onChange={(e) =>
+                      setReceiptForm((prev) => ({ ...prev, bodyFontSize: Number(e.target.value) }))
+                    }
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-on-surface-variant mt-0.5">
+                    <span>Compact (10px)</span>
+                    <span>Standard (12px)</span>
+                    <span>Spacious (16px)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 5: Section Fill, Table Borders & Signature */}
+              <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold text-on-surface flex items-center gap-2 border-b border-outline-variant/20 pb-2">
+                  <span className="material-symbols-outlined text-primary text-[18px]">table_chart</span>
+                  <span>5. Section Fill, Table Borders & Signature</span>
                 </h3>
 
                 {/* Primary Accent Color */}
                 <div>
                   <label className="text-xs font-medium text-on-surface block mb-1.5">
-                    Primary Accent Color (Receipt No, Dividers, Badge Borders)
+                    Primary Accent Color (Receipt No, Voucher Badge, Dividers)
                   </label>
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
@@ -1216,25 +1508,87 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Body Font Size Slider */}
+                {/* Details Box & Table Header Background */}
                 <div>
-                  <div className="flex justify-between items-center text-xs font-medium text-on-surface mb-1.5">
-                    <label>Receipt Body Text Size</label>
-                    <span className="font-mono px-2 py-0.5 rounded bg-surface-container text-primary font-bold text-[11px]">
-                      {receiptForm.bodyFontSize || 12}px
-                    </span>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Student Details Card & Table Header Background
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.sectionBgColor || '#f8fafc'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, sectionBgColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.sectionBgColor || '#f8fafc'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {BG_COLOR_PRESETS.map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, sectionBgColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.sectionBgColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min={10}
-                    max={15}
-                    step={1}
-                    value={receiptForm.bodyFontSize || 12}
-                    onChange={(e) =>
-                      setReceiptForm((prev) => ({ ...prev, bodyFontSize: Number(e.target.value) }))
-                    }
-                    className="w-full accent-primary cursor-pointer"
-                  />
+                </div>
+
+                {/* Table Grid & Divider Lines Color */}
+                <div>
+                  <label className="text-xs font-medium text-on-surface block mb-1.5">
+                    Table Grid & Divider Lines Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 p-1 rounded bg-surface-container-low border border-outline-variant/30">
+                      <input
+                        type="color"
+                        value={receiptForm.tableBorderColor || '#e2e8f0'}
+                        onChange={(e) =>
+                          setReceiptForm((prev) => ({ ...prev, tableBorderColor: e.target.value }))
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+                      />
+                      <span className="text-xs font-mono font-semibold px-1 text-on-surface">
+                        {receiptForm.tableBorderColor || '#e2e8f0'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {[
+                        { name: 'Light Slate', hex: '#e2e8f0' },
+                        { name: 'Standard Gray', hex: '#d1d5db' },
+                        { name: 'Soft Blue', hex: '#bfdbfe' },
+                        { name: 'Soft Dark', hex: '#4b5563' }
+                      ].map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => setReceiptForm((prev) => ({ ...prev, tableBorderColor: p.hex }))}
+                          title={p.name}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            receiptForm.tableBorderColor === p.hex
+                              ? 'scale-115 border-primary shadow-sm'
+                              : 'border-white/50 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: p.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Footer Notes Disclaimer */}
@@ -1709,7 +2063,7 @@ export const SettingsPage: React.FC = () => {
                 <div className="p-2.5 bg-surface-container-lowest rounded border border-outline-variant/20">
                   <span className="text-on-surface-variant block text-[11px]">Linked Number</span>
                   <span className="font-data-mono font-bold text-on-surface mt-0.5 block">
-                    {waStatus.maskedPhone || '+91 ••••• 3210'}
+                    {waStatus.maskedPhone || 'No Number Linked'}
                   </span>
                 </div>
                 <div className="p-2.5 bg-surface-container-lowest rounded border border-outline-variant/20">

@@ -27,6 +27,12 @@ export interface ReceiptSettings {
   bodyFontSize?: number;
   primaryColor?: string;
   textColor?: string;
+  secondaryTextColor?: string;
+  cardBgColor?: string;
+  cardBgOpacity?: number;
+  cardBorderColor?: string;
+  sectionBgColor?: string;
+  tableBorderColor?: string;
   footerNotes?: string;
   signatoryLabel?: string;
   showSignatoryLine?: boolean;

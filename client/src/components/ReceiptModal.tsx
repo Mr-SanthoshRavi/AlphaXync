@@ -37,10 +37,29 @@ export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
   bodyFontSize: 12,
   primaryColor: '#1e40af',
   textColor: '#1f2937',
+  secondaryTextColor: '#6b7280',
+  cardBgColor: '#ffffff',
+  cardBgOpacity: 1.0,
+  cardBorderColor: '#e5e7eb',
+  sectionBgColor: '#f8fafc',
+  tableBorderColor: '#e2e8f0',
   footerNotes: '• Computer generated official receipt.\n• Verified against institutional ledger.',
   signatoryLabel: 'Authorized Signatory',
   showSignatoryLine: true
 };
+
+export function hexToRgba(hex?: string, opacity: number = 1): string {
+  if (!hex) return `rgba(255, 255, 255, ${opacity})`;
+  let clean = hex.replace('#', '').trim();
+  if (clean.length === 3) {
+    clean = clean.split('').map((c) => c + c).join('');
+  }
+  const r = parseInt(clean.substring(0, 2), 16) || 255;
+  const g = parseInt(clean.substring(2, 4), 16) || 255;
+  const b = parseInt(clean.substring(4, 6), 16) || 255;
+  const safeOpacity = Math.max(0, Math.min(1, opacity));
+  return `rgba(${r}, ${g}, ${b}, ${safeOpacity})`;
+}
 
 export interface ReceiptPaperProps {
   receipt: ReceiptData;
@@ -93,13 +112,20 @@ export const ReceiptPaper: React.FC<ReceiptPaperProps> = ({ receipt, customSetti
         minute: '2-digit'
       });
 
+  const cardBg = hexToRgba(activeSettings.cardBgColor || '#ffffff', activeSettings.cardBgOpacity ?? 1.0);
+  const isTranslucent = (activeSettings.cardBgOpacity ?? 1.0) < 1.0;
+
   return (
     <div
       id="printable-receipt"
-      className={`relative p-6 bg-white select-none font-sans overflow-hidden border border-gray-200 rounded shadow-sm ${className}`}
+      className={`relative p-6 select-none font-sans overflow-hidden border rounded-xl shadow-sm transition-all ${className}`}
       style={{
-        fontSize: `${activeSettings.bodyFontSize}px`,
-        color: activeSettings.textColor,
+        fontSize: `${activeSettings.bodyFontSize || 12}px`,
+        color: activeSettings.textColor || '#1f2937',
+        backgroundColor: cardBg,
+        borderColor: activeSettings.cardBorderColor || '#e5e7eb',
+        backdropFilter: isTranslucent ? 'blur(12px)' : undefined,
+        WebkitBackdropFilter: isTranslucent ? 'blur(12px)' : undefined,
         minHeight: '480px'
       }}
     >
@@ -233,92 +259,199 @@ export const ReceiptPaper: React.FC<ReceiptPaperProps> = ({ receipt, customSetti
         </div>
 
         {/* Receipt Top Info */}
-        <div className="flex justify-between items-center text-xs border-b border-gray-200 pb-2 mb-3">
+        <div
+          className="flex justify-between items-center text-xs pb-2 mb-3 border-b"
+          style={{ borderColor: activeSettings.tableBorderColor || '#e5e7eb' }}
+        >
           <div>
-            <span className="text-gray-500">Receipt No: </span>
+            <span style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}>Receipt No: </span>
             <span
               className="font-mono font-bold text-sm"
-              style={{ color: activeSettings.primaryColor }}
+              style={{ color: activeSettings.primaryColor || '#1e40af' }}
             >
               {receipt.receiptNumber}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Date: </span>
-            <span className="font-mono font-semibold text-gray-800">{formattedDate}</span>
+            <span style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}>Date: </span>
+            <span
+              className="font-mono font-semibold"
+              style={{ color: activeSettings.textColor || '#1f2937' }}
+            >
+              {formattedDate}
+            </span>
           </div>
         </div>
 
         {/* Student Details Grid */}
-        <div className="bg-gray-50/80 rounded p-3 mb-4 border border-gray-200 grid grid-cols-2 gap-2 text-xs">
+        <div
+          className="rounded p-3 mb-4 border grid grid-cols-2 gap-2 text-xs transition-colors"
+          style={{
+            backgroundColor: activeSettings.sectionBgColor || '#f8fafc',
+            borderColor: activeSettings.tableBorderColor || '#e5e7eb'
+          }}
+        >
           <div>
-            <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Student Name</span>
-            <span className="font-bold text-gray-900 text-sm">{receipt.studentName}</span>
+            <span
+              className="block text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+            >
+              Student Name
+            </span>
+            <span
+              className="font-bold text-sm"
+              style={{ color: activeSettings.textColor || '#111827' }}
+            >
+              {receipt.studentName}
+            </span>
           </div>
           <div>
-            <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Register / Roll No</span>
-            <span className="font-mono font-semibold text-gray-900 text-sm">{receipt.registerNo}</span>
+            <span
+              className="block text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+            >
+              Register / Roll No
+            </span>
+            <span
+              className="font-mono font-semibold text-sm"
+              style={{ color: activeSettings.textColor || '#111827' }}
+            >
+              {receipt.registerNo}
+            </span>
           </div>
           <div>
-            <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Course / Degree</span>
-            <span className="text-gray-800 font-medium">{receipt.course || 'BCA / Engineering'}</span>
+            <span
+              className="block text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+            >
+              Course / Degree
+            </span>
+            <span
+              className="font-medium"
+              style={{ color: activeSettings.textColor || '#374151' }}
+            >
+              {receipt.course || 'BCA / Engineering'}
+            </span>
           </div>
           <div>
-            <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Department</span>
-            <span className="text-gray-800 font-medium">{receipt.department || 'General'}</span>
+            <span
+              className="block text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+            >
+              Department
+            </span>
+            <span
+              className="font-medium"
+              style={{ color: activeSettings.textColor || '#374151' }}
+            >
+              {receipt.department || 'General'}
+            </span>
           </div>
         </div>
 
         {/* Payment Details Table */}
-        <table className="w-full text-xs border-collapse border border-gray-300 mb-4">
+        <table
+          className="w-full text-xs border-collapse border mb-4 transition-colors"
+          style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+        >
           <thead>
-            <tr className="bg-gray-100 text-gray-700">
-              <th className="border border-gray-300 p-2 text-left font-semibold">Description</th>
-              <th className="border border-gray-300 p-2 text-center font-semibold">Payment Mode</th>
-              <th className="border border-gray-300 p-2 text-right font-semibold">Amount Paid</th>
+            <tr
+              style={{
+                backgroundColor: activeSettings.sectionBgColor || '#f1f5f9',
+                color: activeSettings.secondaryTextColor || '#475569'
+              }}
+            >
+              <th
+                className="border p-2 text-left font-semibold"
+                style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+              >
+                Description
+              </th>
+              <th
+                className="border p-2 text-center font-semibold"
+                style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+              >
+                Payment Mode
+              </th>
+              <th
+                className="border p-2 text-right font-semibold"
+                style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+              >
+                Amount Paid
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="border border-gray-300 p-2 font-medium">
+              <td
+                className="border p-2 font-medium"
+                style={{
+                  borderColor: activeSettings.tableBorderColor || '#e2e8f0',
+                  color: activeSettings.textColor || '#1f2937'
+                }}
+              >
                 Tuition Fee Installment
                 {receipt.transactionReference && (
-                  <span className="block text-[10px] text-gray-500 font-mono">
+                  <span
+                    className="block text-[10px] font-mono mt-0.5"
+                    style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+                  >
                     Ref: {receipt.transactionReference}
                   </span>
                 )}
               </td>
-              <td className="border border-gray-300 p-2 text-center font-sans font-semibold">
+              <td
+                className="border p-2 text-center font-sans font-semibold"
+                style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+              >
                 {receipt.paymentMethod === 'UPI' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold text-[11px] border border-purple-200 shadow-xs">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold text-[11px] border border-purple-200 shadow-2xs">
                     <span>📱</span> UPI / QR (GPay/Paytm)
                   </span>
                 ) : receipt.paymentMethod === 'CASH' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-semibold text-[11px] border border-amber-200 shadow-xs">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-semibold text-[11px] border border-amber-200 shadow-2xs">
                     <span>🏢</span> On-Spot Counter Cash
                   </span>
                 ) : receipt.paymentMethod === 'RAZORPAY' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[11px] border border-blue-200 shadow-xs">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[11px] border border-blue-200 shadow-2xs">
                     <span>🌐</span> Online (Razorpay)
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-50 text-gray-700 font-semibold text-[11px] border border-gray-200 shadow-xs">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-50 text-gray-700 font-semibold text-[11px] border border-gray-200 shadow-2xs">
                     <span>💳</span> {receipt.paymentMethod || 'CASH'}
                   </span>
                 )}
               </td>
-              <td className="border border-gray-300 p-2 text-right font-mono font-bold text-emerald-700 text-sm">
+              <td
+                className="border p-2 text-right font-mono font-bold text-emerald-700 text-sm"
+                style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+              >
                 ₹{Number(receipt.amount).toLocaleString('en-IN')}
               </td>
             </tr>
           </tbody>
           <tfoot>
             {receipt.balanceRemaining !== undefined && (
-              <tr className="bg-gray-50">
-                <td colSpan={2} className="border border-gray-300 p-2 text-right font-semibold text-gray-600">
+              <tr
+                style={{
+                  backgroundColor: activeSettings.sectionBgColor || '#f8fafc',
+                  borderColor: activeSettings.tableBorderColor || '#e2e8f0'
+                }}
+              >
+                <td
+                  colSpan={2}
+                  className="border p-2 text-right font-semibold"
+                  style={{
+                    borderColor: activeSettings.tableBorderColor || '#e2e8f0',
+                    color: activeSettings.secondaryTextColor || '#4b5563'
+                  }}
+                >
                   Remaining Outstanding Balance:
                 </td>
-                <td className="border border-gray-300 p-2 text-right font-mono font-bold text-red-600">
+                <td
+                  className="border p-2 text-right font-mono font-bold text-red-600"
+                  style={{ borderColor: activeSettings.tableBorderColor || '#e2e8f0' }}
+                >
                   ₹{Number(receipt.balanceRemaining).toLocaleString('en-IN')}
                 </td>
               </tr>
@@ -328,20 +461,35 @@ export const ReceiptPaper: React.FC<ReceiptPaperProps> = ({ receipt, customSetti
 
         {/* Dynamic Next Payment QR or Full Settlement Clearance */}
         {receipt.balanceRemaining !== undefined && receipt.balanceRemaining > 0 ? (
-          <div className="mb-4 p-2.5 rounded bg-slate-50 border border-dashed border-slate-300 flex items-center justify-between gap-3">
+          <div
+            className="mb-4 p-2.5 rounded border border-dashed flex items-center justify-between gap-3"
+            style={{
+              backgroundColor: activeSettings.sectionBgColor || '#f8fafc',
+              borderColor: activeSettings.tableBorderColor || '#cbd5e1'
+            }}
+          >
             <div>
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+              <div
+                className="flex items-center gap-1.5 text-[11px] font-bold"
+                style={{ color: activeSettings.textColor || '#1e293b' }}
+              >
                 <span>📲</span>
                 <span>Next Installment QR & Online Pay Link</span>
               </div>
-              <p className="text-[10px] text-slate-600 mt-0.5">
+              <p
+                className="text-[10px] mt-0.5"
+                style={{ color: activeSettings.secondaryTextColor || '#64748b' }}
+              >
                 Scan with any UPI app (GPay / PhonePe / Paytm) to pay remaining ₹{Number(receipt.balanceRemaining).toLocaleString('en-IN')}
               </p>
-              <p className="text-[9px] text-blue-600 font-mono mt-1 underline">
+              <p
+                className="text-[9px] font-mono mt-1 underline"
+                style={{ color: activeSettings.primaryColor || '#2563eb' }}
+              >
                 http://xync.alphaprime.co.in/pay?reg={receipt.registerNo}
               </p>
             </div>
-            <div className="w-16 h-16 bg-white p-1 rounded border border-slate-200 shrink-0 shadow-xs">
+            <div className="w-16 h-16 bg-white p-1 rounded border border-slate-200 shrink-0 shadow-2xs">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=alphaxync@upi&pn=AlphaXync&am=${receipt.balanceRemaining}&cu=INR&tn=${receipt.registerNo}_BAL`)}`}
                 alt="Next Payment QR"
@@ -359,17 +507,29 @@ export const ReceiptPaper: React.FC<ReceiptPaperProps> = ({ receipt, customSetti
         ) : null}
 
         {/* Footer & Signature */}
-        <div className="flex justify-between items-end pt-4 mt-4 border-t border-gray-200 text-xs">
-          <div className="text-[10px] text-gray-500 leading-relaxed">
+        <div
+          className="flex justify-between items-end pt-4 mt-4 border-t text-xs"
+          style={{ borderColor: activeSettings.tableBorderColor || '#e5e7eb' }}
+        >
+          <div
+            className="text-[10px] leading-relaxed max-w-xs"
+            style={{ color: activeSettings.secondaryTextColor || '#6b7280' }}
+          >
             {activeSettings.footerNotes?.split('\n').map((line, idx) => (
               <p key={idx}>{line}</p>
             ))}
           </div>
           <div className="text-center">
             {activeSettings.showSignatoryLine && (
-              <div className="w-32 border-b border-gray-400 mb-1"></div>
+              <div
+                className="w-32 border-b mb-1"
+                style={{ borderColor: activeSettings.secondaryTextColor || '#9ca3af' }}
+              ></div>
             )}
-            <span className="text-[11px] font-semibold text-gray-700 uppercase">
+            <span
+              className="text-[11px] font-semibold uppercase"
+              style={{ color: activeSettings.secondaryTextColor || '#4b5563' }}
+            >
               {activeSettings.signatoryLabel || 'Authorized Signatory'}
             </span>
           </div>

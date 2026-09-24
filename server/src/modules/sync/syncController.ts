@@ -8,6 +8,7 @@ import { resolveConflict } from './conflictEngine';
 import { suggestMapping, validateCriticalMappings } from './mappingEngine';
 import { AppError } from '../../middleware/errorHandler';
 import { AuditLog } from '../../models/AuditLog';
+import { isMockMode } from '../../config/env';
 
 const mappingSchema = z.object({
   mapping: z.record(z.string())
@@ -41,24 +42,7 @@ const DEFAULT_MAPPING = {
 export async function getSyncStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
-    let connections = await DataConnection.find({ institutionId });
-
-    // Default connections if none exist
-    if (connections.length === 0) {
-      const defaultConn = await DataConnection.create({
-        institutionId,
-        provider: 'google_sheets',
-        status: 'CONNECTED',
-        accountReference: 'mock_google_sheets@institution.edu',
-        sheetReference: 'Students_Master',
-        syncInterval: 60,
-        columnMapping: DEFAULT_MAPPING
-      });
-      connections = [defaultConn];
-    } else if (!connections[0].columnMapping || Object.keys(connections[0].columnMapping).length === 0) {
-      connections[0].columnMapping = DEFAULT_MAPPING as any;
-      await connections[0].save();
-    }
+    const connections = await DataConnection.find({ institutionId });
 
     const openConflictsCount = await SyncConflict.countDocuments({ institutionId, status: 'OPEN' });
 
@@ -88,20 +72,30 @@ export async function getSyncStatus(req: Request, res: Response, next: NextFunct
 export async function triggerManualSync(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
-    let connection = await DataConnection.findOne({ institutionId });
+    const connection = await DataConnection.findOne({ institutionId });
     if (!connection) {
-      connection = await DataConnection.create({
-        institutionId,
-        provider: 'google_sheets',
-        status: 'CONNECTED',
-        accountReference: 'mock_google_sheets@institution.edu',
-        sheetReference: 'Students_Master',
-        columnMapping: DEFAULT_MAPPING
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'DATA_SOURCE_DISCONNECTED',
+          message: 'No Google Sheet or Excel connection linked. Please connect a spreadsheet in Data Sync & Integrity first.'
+        }
       });
-    } else if (!connection.columnMapping || Object.keys(connection.columnMapping).length === 0) {
+    }
+
+    if (!connection.columnMapping || Object.keys(connection.columnMapping).length === 0) {
       connection.columnMapping = DEFAULT_MAPPING as any;
-      connection.status = 'CONNECTED';
       await connection.save();
+    }
+
+    if (connection.status !== 'CONNECTED') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'DATA_SOURCE_DISCONNECTED',
+          message: 'Data source is not connected. Please connect Google Sheets first.'
+        }
+      });
     }
 
     const metrics = await runSync(connection._id.toString());

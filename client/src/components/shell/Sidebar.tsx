@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../../lib/api';
 
 export type NavTab = 'dashboard' | 'students' | 'fees' | 'automations' | 'messages' | 'sync' | 'settings';
 
@@ -21,6 +22,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onToggleCollapse,
 }) => {
+  const [sheetStatus, setSheetStatus] = useState<{ isConnected: boolean; providerLabel: string }>({
+    isConnected: false,
+    providerLabel: 'Spreadsheet'
+  });
+
+  const checkSyncStatus = async () => {
+    try {
+      const res = await api.getSyncStatus();
+      const conns = res?.connections || [];
+      const activeConn = conns.find((c: any) => c.status === 'CONNECTED');
+      if (activeConn) {
+        const label = activeConn.provider === 'microsoft_excel' ? 'MS Excel' : 'Google Sheets';
+        setSheetStatus({ isConnected: true, providerLabel: label });
+      } else {
+        setSheetStatus({ isConnected: false, providerLabel: 'Spreadsheet' });
+      }
+    } catch {
+      setSheetStatus({ isConnected: false, providerLabel: 'Spreadsheet' });
+    }
+  };
+
+  useEffect(() => {
+    checkSyncStatus();
+    const handleUpdate = () => checkSyncStatus();
+    window.addEventListener('campusflow:data-updated', handleUpdate);
+    return () => window.removeEventListener('campusflow:data-updated', handleUpdate);
+  }, []);
   const navItems: { id: NavTab; label: string; icon: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'students', label: 'Students', icon: 'school' },
@@ -151,18 +179,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer / Status & Station */}
       <div className={`flex flex-col border-t border-outline-variant/20 ${collapsed ? 'p-2' : 'p-space-sm gap-2'} bg-surface-container-lowest`}>
-        {/* Source Connection Live Indicator */}
+        {/* Source Connection Live / Offline Indicator */}
         {!collapsed ? (
           <div className="px-space-sm py-1.5 rounded-lg bg-surface-container-low border border-outline-variant/20 flex items-center justify-between animate-fade-in">
-            <div className="flex items-center gap-space-xs">
-              <span className="w-2 h-2 rounded-full bg-secondary ring-2 ring-secondary/30 shrink-0"></span>
-              <span className="font-label-sm text-label-sm text-on-surface font-medium">Google Sheets</span>
+            <div className="flex items-center gap-space-xs min-w-0">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  sheetStatus.isConnected
+                    ? 'bg-secondary ring-2 ring-secondary/30'
+                    : 'bg-outline/40'
+                } shrink-0`}
+              ></span>
+              <span className="font-label-sm text-label-sm text-on-surface font-medium truncate">
+                {sheetStatus.providerLabel}
+              </span>
             </div>
-            <span className="font-data-mono text-[10px] text-secondary font-bold uppercase tracking-wider">LIVE</span>
+            <span
+              className={`font-data-mono text-[10px] ${
+                sheetStatus.isConnected ? 'text-secondary font-bold' : 'text-on-surface-variant font-medium'
+              } uppercase tracking-wider shrink-0`}
+            >
+              {sheetStatus.isConnected ? 'LIVE' : 'NOT LINKED'}
+            </span>
           </div>
         ) : (
-          <div className="flex justify-center py-1.5" title="Google Sheets Connection: LIVE">
-            <span className="w-2.5 h-2.5 rounded-full bg-secondary ring-2 ring-secondary/30"></span>
+          <div
+            className="flex justify-center py-1.5"
+            title={`${sheetStatus.providerLabel}: ${sheetStatus.isConnected ? 'LIVE' : 'NOT LINKED'}`}
+          >
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                sheetStatus.isConnected ? 'bg-secondary ring-2 ring-secondary/30' : 'bg-outline/40'
+              }`}
+            ></span>
           </div>
         )}
 

@@ -2,20 +2,28 @@ import { Request, Response, NextFunction } from 'express';
 import { getBaileysWhatsAppProvider } from '../../integrations/whatsapp/BaileysWhatsAppProvider';
 import { env, isMockMode } from '../../config/env';
 import { logger } from '../../utils/logger';
+import { Institution } from '../../models/Institution';
+
+let mockConnectedState = false;
 
 export async function getWhatsAppStatus(req: Request, res: Response, next: NextFunction) {
   try {
+    const institutionId = req.user?.institutionId;
+    const inst = institutionId ? await Institution.findById(institutionId) : null;
+    const dbStatus = inst?.whatsappConnection?.status || 'NOT_CONNECTED';
+
     if (isMockMode()) {
+      const isConn = Boolean(mockConnectedState && dbStatus === 'CONNECTED');
       return res.status(200).json({
         success: true,
         data: {
           provider: 'mock',
-          state: 'CONNECTED',
-          statusText: 'CONNECTED ✓',
+          state: isConn ? 'CONNECTED' : 'NOT_CONNECTED',
+          statusText: isConn ? 'CONNECTED ✓' : 'NOT CONNECTED',
           qrCode: null,
-          maskedPhone: '+91 ••••• 3210',
+          maskedPhone: isConn ? (inst?.whatsappConnection?.phone || '+91 ••••• 0000') : null,
           lastError: null,
-          hasStoredSession: true,
+          hasStoredSession: isConn,
           minSendIntervalMs: env.MIN_SEND_INTERVAL_MS,
           concurrency: env.OUTBOUND_CONCURRENCY
         }
@@ -23,11 +31,16 @@ export async function getWhatsAppStatus(req: Request, res: Response, next: NextF
     }
 
     const baileys = getBaileysWhatsAppProvider();
-    const rawState = baileys.getConnectionState();
-    const qrDataUrl = baileys.getQrDataUrl();
-    const maskedPhone = baileys.getMaskedPhone();
-    const lastError = baileys.getLastError();
-    const hasStoredSession = baileys.hasStoredSession();
+    let rawState = baileys.getConnectionState();
+    let qrDataUrl = baileys.getQrDataUrl();
+    let maskedPhone = baileys.getMaskedPhone();
+    let lastError = baileys.getLastError();
+    let hasStoredSession = baileys.hasStoredSession();
+
+    if (dbStatus === 'NOT_CONNECTED' && rawState !== 'CONNECTED') {
+      rawState = 'NOT_CONNECTED';
+      maskedPhone = null;
+    }
 
     let statusText = 'NOT CONNECTED';
     if (rawState === 'CONNECTED') {
@@ -65,10 +78,22 @@ export async function getWhatsAppStatus(req: Request, res: Response, next: NextF
 
 export async function connectWhatsApp(req: Request, res: Response, next: NextFunction) {
   try {
+    const institutionId = req.user?.institutionId;
+
     if (isMockMode()) {
+      mockConnectedState = true;
+      if (institutionId) {
+        await Institution.findByIdAndUpdate(institutionId, {
+          $set: {
+            'whatsappConnection.status': 'CONNECTED',
+            'whatsappConnection.phone': '+91 ••••• 0000',
+            'whatsappConnection.connectedAt': new Date()
+          }
+        });
+      }
       return res.status(200).json({
         success: true,
-        data: { state: 'CONNECTED', statusText: 'CONNECTED ✓', maskedPhone: '+91 ••••• 3210' }
+        data: { state: 'CONNECTED', statusText: 'CONNECTED ✓', maskedPhone: '+91 ••••• 0000' }
       });
     }
 
@@ -77,14 +102,13 @@ export async function connectWhatsApp(req: Request, res: Response, next: NextFun
 
     // In Vercel serverless, Baileys WebSocket cannot run 24/7 in an ephemeral lambda
     if (isServerless && (!baileys || baileys.getConnectionState() === 'NOT_CONNECTED')) {
-      // Try initializing, but if library is missing or serverless, return clear guidance
       await baileys.initialize().catch(() => {});
       if (!baileys.getQrDataUrl() && baileys.getConnectionState() !== 'CONNECTED') {
         return res.status(400).json({
           success: false,
           error: {
             code: 'BAILEYS_SERVERLESS_LIMITATION',
-            message: 'WhatsApp Baileys Web (QR scan) requires a persistent 24/7 background Node.js server (Render / Railway / VPS) because Vercel Serverless terminates after each request. For Vercel, please set WHATSAPP_PROVIDER=cloud_api (Official Meta Cloud API) or WHATSAPP_PROVIDER=mock (Simulation) in Vercel Environment Variables.'
+            message: 'WhatsApp Baileys requires a persistent 24/7 Node.js server (Render / Railway / VPS). For live Baileys, please point VITE_API_URL to your persistent backend host.'
           }
         });
       }
@@ -112,7 +136,7 @@ export async function refreshWhatsAppQr(req: Request, res: Response, next: NextF
     if (isMockMode()) {
       return res.status(200).json({
         success: true,
-        data: { state: 'CONNECTED', statusText: 'CONNECTED ✓' }
+        data: { state: mockConnectedState ? 'CONNECTED' : 'NOT_CONNECTED', statusText: mockConnectedState ? 'CONNECTED ✓' : 'NOT CONNECTED' }
       });
     }
 
@@ -134,6 +158,18 @@ export async function refreshWhatsAppQr(req: Request, res: Response, next: NextF
 
 export async function disconnectWhatsApp(req: Request, res: Response, next: NextFunction) {
   try {
+    mockConnectedState = false;
+    const institutionId = req.user?.institutionId;
+    if (institutionId) {
+      await Institution.findByIdAndUpdate(institutionId, {
+        $set: {
+          'whatsappConnection.status': 'NOT_CONNECTED',
+          'whatsappConnection.phone': null,
+          'whatsappConnection.connectedAt': null
+        }
+      });
+    }
+
     const baileys = getBaileysWhatsAppProvider();
     await baileys.disconnect();
 
@@ -148,6 +184,18 @@ export async function disconnectWhatsApp(req: Request, res: Response, next: Next
 
 export async function logoutWhatsApp(req: Request, res: Response, next: NextFunction) {
   try {
+    mockConnectedState = false;
+    const institutionId = req.user?.institutionId;
+    if (institutionId) {
+      await Institution.findByIdAndUpdate(institutionId, {
+        $set: {
+          'whatsappConnection.status': 'NOT_CONNECTED',
+          'whatsappConnection.phone': null,
+          'whatsappConnection.connectedAt': null
+        }
+      });
+    }
+
     const baileys = getBaileysWhatsAppProvider();
     await baileys.logout();
 

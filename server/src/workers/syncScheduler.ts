@@ -4,6 +4,7 @@ import { Automation } from '../models/Automation';
 import { runSync } from '../modules/sync/syncEngine';
 import { evaluateAllAutomations } from './automationWorker';
 import { logger } from '../utils/logger';
+import { isMockMode } from '../config/env';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isSyncInProgress = false;
@@ -21,10 +22,15 @@ export function startSyncScheduler(checkIntervalMs = 15000) {
       const now = Date.now();
       const connections = await DataConnection.find({
         status: 'CONNECTED',
+        accountReference: { $not: /mock/i },
         provider: { $in: ['google_sheets', 'microsoft_excel'] }
       });
 
       for (const conn of connections) {
+        if (conn.accountReference?.includes('mock')) {
+          continue;
+        }
+
         const intervalMs = Math.max(15, conn.syncInterval || 30) * 1000;
         const lastSync = conn.lastSyncAt ? new Date(conn.lastSyncAt).getTime() : 0;
 
