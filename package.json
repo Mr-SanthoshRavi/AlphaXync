@@ -9,6 +9,7 @@
     "build": "npm run build --prefix server && npm run build --prefix client",
     "build:server": "npm run build --prefix server",
     "build:client": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
     "vercel-build": "npm run build --prefix client",
     "test:server": "npm test --prefix server"
   },

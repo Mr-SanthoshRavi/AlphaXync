@@ -1946,6 +1946,19 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Mock Mode Notice */}
+          {waStatus.provider === 'mock' && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs space-y-1">
+              <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300">
+                <span className="material-symbols-outlined text-[18px]">info</span>
+                <span>WhatsApp Mock Sandbox Active</span>
+              </div>
+              <p className="text-amber-700/90 dark:text-amber-400">
+                The application is running in <strong>Mock Mode</strong>. Clicking Connect WhatsApp simulates linking with dummy number <strong>+91 ••••• 0000</strong>. To scan a real WhatsApp QR code and link your actual phone, ensure your backend is running in Real Mode on a persistent 24/7 host (such as Render).
+              </p>
+            </div>
+          )}
+
           {/* Conditional Sub-views based on Connection State */}
           {isLoggedOut && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded text-amber-800 text-xs flex items-center gap-2">
@@ -2065,11 +2078,14 @@ export const SettingsPage: React.FC = () => {
                   <span className="font-data-mono font-bold text-on-surface mt-0.5 block">
                     {waStatus.maskedPhone || 'No Number Linked'}
                   </span>
+                  {waStatus.provider === 'mock' && (
+                    <span className="text-[10px] text-amber-600 block mt-0.5 font-medium">Simulated Mock Account</span>
+                  )}
                 </div>
                 <div className="p-2.5 bg-surface-container-lowest rounded border border-outline-variant/20">
                   <span className="text-on-surface-variant block text-[11px]">Session Persistence</span>
-                  <span className="font-semibold text-emerald-700 mt-0.5 block">
-                    Persisted on Disk ✓
+                  <span className={`font-semibold mt-0.5 block ${waStatus.provider === 'mock' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {waStatus.provider === 'mock' ? 'Mock In-Memory (Simulated)' : 'Persisted on Disk ✓'}
                   </span>
                 </div>
                 <div className="p-2.5 bg-surface-container-lowest rounded border border-outline-variant/20">

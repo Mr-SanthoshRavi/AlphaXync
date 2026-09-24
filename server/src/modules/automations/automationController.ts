@@ -557,7 +557,7 @@ export async function getAutomationVariables(req: Request, res: Response, next: 
       {
         tag: '{{payment_link}}',
         label: 'Protected Online Payment Link',
-        sample: `http://xync.alphaprime.co.in/pay/${sampleStudent?._id?.toString().slice(-6) || 'a1b2c3'}`,
+        sample: `https://xync.alphaprime.co.in/pay/${sampleStudent?._id?.toString().slice(-6) || 'a1b2c3'}`,
         category: 'FINANCIAL'
       },
 

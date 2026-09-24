@@ -38,6 +38,7 @@ const envSchema = z.object({
   AI_ENABLED: z.coerce.boolean().default(false),
   AI_PROVIDER_KEY: z.string().optional().default(''),
 
+  CLIENT_URL: z.string().optional().default('https://xync.alphaprime.co.in'),
   APP_MODE: z.enum(['real', 'mock']).default('real'),
   USE_MOCK_PROVIDERS: z.coerce.boolean().default(false),
 

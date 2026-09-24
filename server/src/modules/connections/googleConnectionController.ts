@@ -123,7 +123,7 @@ function getFrontendBaseUrl(req: Request): string {
   if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
     return `${proto}://${host}`;
   }
-  return process.env.CLIENT_URL || 'http://localhost:5173';
+  return process.env.CLIENT_URL || env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://xync.alphaprime.co.in' : 'http://localhost:5173');
 }
 
 /**

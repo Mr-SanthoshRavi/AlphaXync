@@ -176,7 +176,8 @@ export async function handlePaymentSuccess(params: PaymentSuccessParams): Promis
         paymentToken,
         expiresAt
       });
-      nextPaymentUrl = `http://xync.alphaprime.co.in/pay/${paymentToken}`;
+      const clientBaseUrl = (process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://xync.alphaprime.co.in' : 'http://localhost:5173')).replace(/\/+$/, '');
+      nextPaymentUrl = `${clientBaseUrl}/pay/${paymentToken}`;
       upiDirectUrl = `upi://pay?pa=alphaxync@upi&pn=AlphaXync&am=${feeAccount.balance}&cu=INR&tn=${student.externalStudentId}_BAL`;
     }
 

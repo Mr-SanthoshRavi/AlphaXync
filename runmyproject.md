@@ -153,34 +153,115 @@ taskkill /PID <PID_NUMBER> /F
 
 ---
 
-## ☁️ 8. Vercel-ல் Deploy செய்து Domain இணைக்கும் முறை (Vercel Deployment & Domain Setup)
+## ☁️ 8. நேரலை தயாரிப்பு வெளியீடு (Production Deployment: Render Backend + Vercel Frontend)
 
-உங்கள் குறிப்பிட்ட பயனர்களுக்காக (Set of Users) Vercel-ல் Deploy செய்து `http://xync.alphaprime.co.in/` domain-ஐ இணைக்க:
+AlphaXync சிஸ்டத்தில் **WhatsApp Web (Baileys QR Scan)** 24/7 தடையின்றி இயங்கவும், **Frontend** அதிவேகமாக இயங்கவும் **Dual-Hosting Architecture** பரிந்துரைக்கப்படுகிறது:
+- **Frontend**: **Vercel** (`https://xync.alphaprime.co.in/`) - High-Speed Global CDN SPA
+- **Backend Server**: **Render.com** (Free Web Service) - 24/7 Persistent WebSocket & Baileys Session Server
 
-### படி 1: Vercel CLI அல்லது GitHub மூலம் Deploy செய்தல்
-1. Vercel CLI நிறுவப்பட்டு இருந்தால்:
-```powershell
-npx vercel
+---
+
+### 🔹 பகுதி A: Render.com-ல் Backend Server Deploy செய்யும் முறை
+
+1. [Render.com](https://render.com) சென்று கணக்கில் நுழையவும்.
+2. **New +** ➔ **Web Service** என்பதைத் தேர்ந்தெடுக்கவும்.
+3. உங்கள் GitHub Repository-ஐ இணைக்கவும் (`stitch_campusflow_operations_platform` அல்லது `AlphaXync`).
+4. பின்வரும் அமைப்புகளை (Settings) உள்ளிடவும்:
+   - **Name**: `alphaxync-backend` (அல்லது நீங்கள் விரும்பும் பெயர்)
+   - **Region**: `Singapore` (இந்தியாவுக்கு மிக அருகில் உள்ளதால் குறைவான latency)
+   - **Branch**: `main`
+   - **Root Directory**: `server`
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+   - **Instance Type**: `Free`
+
+5. **Render Environment Variables** (Environment tab-ல் சேர்க்க வேண்டியவை):
+```env
+NODE_ENV=production
+PORT=5000
+MONGODB_URI=mongodb+srv://studifydb:sandy123@alpharoom.2me2xjx.mongodb.net/?appName=Alpharoom
+SESSION_SECRET=campusflow_super_secret_session_key_32bytes_min
+JWT_SECRET=campusflow_jwt_access_secret_key_2026_x992
+JWT_REFRESH_SECRET=campusflow_jwt_refresh_secret_key_2026_y883
+ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+RESEND_KEY=re_g6zoXagc_NmQa117W5dTCdS27wN8JDsqB
+
+# Cloudinary
+CLOUDINARY_API_KEY=933662793875848
+CLOUDINARY_API_SECRET=RytawIRzXJIYxbTiva7t5TJ8GTI
+CLOUDINARY_NAME=bqzs1991
+
+# Razorpay
+PAYMENT_MODE=test
+RAZORPAY_KEY_ID=rzp_test_Tejked95D4vLYJ
+RAZORPAY_KEY_SECRET=jBZKTurn6HniCghBEH7rjcUA
+RAZORPAY_WEBHOOK_SECRET=rzp_webhook_secret_mock998877
+
+# Real WhatsApp Baileys & Real Mode (NO MOCK!)
+WHATSAPP_PROVIDER=baileys
+APP_MODE=real
+MIN_SEND_INTERVAL_MS=10000
+OUTBOUND_CONCURRENCY=1
+CIRCUIT_BREAKER_FAILURES=5
+
+# Production Frontend Domain
+CLIENT_URL=https://xync.alphaprime.co.in
+
+# Google Sheets OAuth
+GOOGLE_CLIENT_ID=1026636982173-nj1kulf07n0mk84g4b5ie922q368mfkm.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=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
+GOOGLE_REDIRECT_URI=https://alphaxync-backend.onrender.com/api/connections/google/callback
+
+# AI & Captcha
+AI_ENABLED=true
+AI_PROVIDER_KEY=AQ.Ab8RN6K6PmIqNAxN0_raS9mxN1YnIW93eQC55QDE3Tkg8gjr_g
+RECAPTCHA_SITE_KEY=6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor
+RECAPTCHA_SECRET_KEY=6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj
 ```
-அல்லது GitHub Repository-ஐ Vercel Dashboard-ல் Import செய்யவும்.
-Root-ல் ஏற்கனவே **`vercel.json`** தயார் செய்யப்பட்டுள்ளது.
+*(குறிப்பு: உங்கள் Render URL வந்ததும் `GOOGLE_REDIRECT_URI`-ல் அந்த சரியான Render URL-ஐ மாற்றவும்).*
 
-### படி 2: Vercel Project Settings-ல் Environment Variables சேர்க்கவும்
-Vercel Project Dashboard ➔ **Settings** ➔ **Environment Variables** சென்று கீழ்க்கண்டவற்றை உள்ளிடவும்:
-- `MONGODB_URI`: உங்கள் MongoDB Atlas connection string
-- `JWT_SECRET`: உங்கள் JWT secret key
-- `JWT_REFRESH_SECRET`: உங்கள் Refresh token secret key
-- `SESSION_SECRET`: உங்கள் Session secret key
-- `RESEND_KEY`: உங்கள் Resend API key (OTP மின்னஞ்சல்களுக்கு)
-- `GEMINI_API_KEY`: உங்கள் Google Gemini AI key (AI Copilot-க்கு)
-- `NODE_ENV`: `production`
+6. **Create Web Service** கிளிக் செய்யவும். Render Build முடிந்து சர்வர் **Live** ஆனதும் உங்கள் Render Backend URL கிடைக்கும் (e.g. `https://alphaxync-backend.onrender.com`).
 
-### படி 3: Custom Domain இணைத்தல் (`http://xync.alphaprime.co.in/`)
-1. Vercel Dashboard ➔ **Settings** ➔ **Domains** செல்லவும்.
+---
+
+### 🔹 பகுதி B: Vercel-ல் Frontend Deploy செய்யும் முறை
+
+1. [Vercel.com](https://vercel.com) Dashboard செல்லவும்.
+2. **Add New...** ➔ **Project** கிளிக் செய்து உங்கள் GitHub Repository-ஐ Import செய்யவும்.
+3. **Project Settings**:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: `./` (Root)
+   - **Build Command**: `npm run build:client`
+   - **Output Directory**: `client/dist`
+   - **Install Command**: `npm install --include=dev && npm --prefix client install --include=dev && npm --prefix server install --include=dev`
+
+4. **Vercel Environment Variables** (Settings ➔ Environment Variables):
+   இங்கே **2 மாறிகள் மட்டுமே போதுமானது** (Mock mode எதையும் சேர்க்க வேண்டாம்!):
+```env
+VITE_API_URL=https://alphaxync-backend.onrender.com
+VITE_RECAPTCHA_SITE_KEY=6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor
+```
+*(குறிப்பு: `VITE_API_URL`-ல் உங்கள் உண்மையான Render Backend URL-ஐ உள்ளிடவும்).*
+
+5. **Deploy** கிளிக் செய்யவும்.
+
+---
+
+### 🔹 பகுதி C: Custom Domain இணைத்தல் (`https://xync.alphaprime.co.in/`)
+
+1. Vercel Project Dashboard ➔ **Settings** ➔ **Domains** செல்லவும்.
 2. `xync.alphaprime.co.in` என்று type செய்து **Add** கொடுக்கவும்.
-3. உங்கள் DNS Manager-ல் (e.g. Cloudflare / Namecheap / GoDaddy) பின்வரும் CNAME Record-ஐ சேர்க்கவும்:
+3. உங்கள் DNS Manager-ல் (Cloudflare / Namecheap / Hostinger / GoDaddy):
    - **Type**: `CNAME`
    - **Name**: `xync`
-   - **Value / Target**: `cname.vercel-dns.com`
-4. DNS propagate ஆனவுடன், உங்கள் தளம் தானாகவே `http://xync.alphaprime.co.in/` மற்றும் HTTPS-ல் நேரலையாக இயங்கும்!
+   - **Target / Value**: `cname.vercel-dns.com`
+   - **Proxy Status**: DNS Only (Cloudflare என்றால் Grey cloud)
+4. DNS சரிபார்க்கப்பட்டதும், Vercel தானாகவே Free SSL Certificate வழங்கி **`https://xync.alphaprime.co.in/`** நேரலையாக இயங்கும்!
+
+---
+
+### 📱 வாட்ஸ்அப் இணைப்பு எப்படி வேலை செய்யும்?
+* நீங்கள் `https://xync.alphaprime.co.in/` திறந்து Settings ➔ WhatsApp Linking சென்று **Connect WhatsApp** கொடுத்தால், Render Backend-ல் உள்ள Baileys Web Socket தொடங்கி, Localhost போலவே நேரலையான **Real QR Code** திரையில் தோன்றும்!
+* உங்கள் மொபைலில் Scan செய்தவுடன் உங்கள் சொந்த WhatsApp எண் இணைக்கப்பட்டு 24/7 தொடர்ந்து இயங்கும்!
 

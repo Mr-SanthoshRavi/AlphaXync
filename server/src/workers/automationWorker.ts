@@ -196,13 +196,14 @@ export async function evaluateFeeReminders(institutionId: Types.ObjectId): Promi
       logger.warn('PAYMENT_INTENT_CREATION_FAILED', `Failed to create payment intent for student ${student._id}`);
     }
 
+    const clientBaseUrl = (process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://xync.alphaprime.co.in' : 'http://localhost:5173')).replace(/\/+$/, '');
     const variables: Record<string, string> = {
       student_name: student.name,
       balance: String(account.balance),
       fee_amount: String(account.totalAmount),
       due_date: account.dueDate.toISOString().slice(0, 10),
       fine_amount: String(account.fineAmount || 0),
-      payment_link: paymentToken ? `http://localhost:5173/pay/${paymentToken}` : `http://localhost:5173/pay/${student._id}`
+      payment_link: paymentToken ? `${clientBaseUrl}/pay/${paymentToken}` : `${clientBaseUrl}/pay/${student._id}`
     };
 
     const template = automation.template || 'Dear {{student_name}}, your tuition fee balance of ₹{{balance}} is due on {{due_date}}. Please pay online: {{payment_link}}';
@@ -545,7 +546,8 @@ export function resolveTemplateVariables(
     setVar('pay_link', paymentLink);
     setVar('link', paymentLink);
   } else if (student?._id) {
-    setVar('payment_link', `http://xync.alphaprime.co.in/pay/${student._id.toString().slice(-6)}`);
+    const clientBaseUrl = (process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://xync.alphaprime.co.in' : 'http://localhost:5173')).replace(/\/+$/, '');
+    setVar('payment_link', `${clientBaseUrl}/pay/${student._id.toString().slice(-6)}`);
   }
 
   // Replace {{ any_tag }}
@@ -722,7 +724,8 @@ export async function evaluateCustomAutomation(automation: any): Promise<number>
               expiresAt: new Date(Date.now() + 72 * 3600 * 1000)
             });
           }
-          paymentLink = `http://localhost:5173/pay/${activeIntent.paymentToken}`;
+          const clientBaseUrl = (process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://xync.alphaprime.co.in' : 'http://localhost:5173')).replace(/\/+$/, '');
+          paymentLink = `${clientBaseUrl}/pay/${activeIntent.paymentToken}`;
         } catch (err) {
           logger.warn('PAYMENT_INTENT_CAMPAIGN_FAILED', `Failed to create payment intent for student ${student._id}`);
         }

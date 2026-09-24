@@ -36,6 +36,8 @@ export function createApp() {
   const allowedOrigins = [
     'http://xync.alphaprime.co.in',
     'https://xync.alphaprime.co.in',
+    'http://alphaprime.co.in',
+    'https://alphaprime.co.in',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5000',
@@ -45,18 +47,40 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // Allow requests with no origin (like mobile apps, curl, server-to-server)
+        // Allow requests with no origin (like mobile apps, curl, server-to-server, SSE)
         if (!origin) return callback(null, true);
-        if (
-          allowedOrigins.includes(origin) ||
-          /\.vercel\.app$/.test(origin) ||
-          env.NODE_ENV !== 'production'
-        ) {
-          return callback(null, true);
+
+        try {
+          const parsed = new URL(origin);
+          const hostname = parsed.hostname;
+          if (
+            hostname === 'xync.alphaprime.co.in' ||
+            hostname === 'alphaprime.co.in' ||
+            hostname.endsWith('.alphaprime.co.in') ||
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname.endsWith('.vercel.app') ||
+            hostname.endsWith('.onrender.com') ||
+            allowedOrigins.includes(origin) ||
+            env.NODE_ENV !== 'production'
+          ) {
+            return callback(null, true);
+          }
+        } catch {
+          if (
+            allowedOrigins.includes(origin) ||
+            origin.includes('alphaprime.co.in') ||
+            origin.includes('.vercel.app') ||
+            env.NODE_ENV !== 'production'
+          ) {
+            return callback(null, true);
+          }
         }
         return callback(new Error(`Origin ${origin} not allowed by CORS`));
       },
-      credentials: true
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
     })
   );
 

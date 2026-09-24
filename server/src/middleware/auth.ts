@@ -31,12 +31,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     let token: string | undefined;
 
-    // Check Authorization header
+    // Check Authorization header, cookies, or query param (for SSE live-stream)
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     } else if (req.cookies && (req.cookies.alphaxync_token || req.cookies.campusflow_token)) {
       token = req.cookies.alphaxync_token || req.cookies.campusflow_token;
+    } else if (req.query && typeof req.query.token === 'string') {
+      token = req.query.token;
     }
 
     if (!token) {

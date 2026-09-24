@@ -19,9 +19,9 @@ export async function getWhatsAppStatus(req: Request, res: Response, next: NextF
         data: {
           provider: 'mock',
           state: isConn ? 'CONNECTED' : 'NOT_CONNECTED',
-          statusText: isConn ? 'CONNECTED ✓' : 'NOT CONNECTED',
+          statusText: isConn ? 'CONNECTED ✓ (Mock Sandbox)' : 'NOT CONNECTED',
           qrCode: null,
-          maskedPhone: isConn ? (inst?.whatsappConnection?.phone || '+91 ••••• 0000') : null,
+          maskedPhone: isConn ? (inst?.whatsappConnection?.phone || '+91 ••••• 0000 (Mock Sandbox)') : null,
           lastError: null,
           hasStoredSession: isConn,
           minSendIntervalMs: env.MIN_SEND_INTERVAL_MS,
@@ -86,14 +86,14 @@ export async function connectWhatsApp(req: Request, res: Response, next: NextFun
         await Institution.findByIdAndUpdate(institutionId, {
           $set: {
             'whatsappConnection.status': 'CONNECTED',
-            'whatsappConnection.phone': '+91 ••••• 0000',
+            'whatsappConnection.phone': '+91 ••••• 0000 (Mock Sandbox)',
             'whatsappConnection.connectedAt': new Date()
           }
         });
       }
       return res.status(200).json({
         success: true,
-        data: { state: 'CONNECTED', statusText: 'CONNECTED ✓', maskedPhone: '+91 ••••• 0000' }
+        data: { state: 'CONNECTED', statusText: 'CONNECTED ✓ (Mock Sandbox)', maskedPhone: '+91 ••••• 0000 (Mock Sandbox)' }
       });
     }
 
