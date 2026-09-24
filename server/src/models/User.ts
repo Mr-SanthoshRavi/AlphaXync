@@ -34,7 +34,7 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
-    institutionId: { type: Schema.Types.ObjectId, ref: 'Institution', required: true },
+    institutionId: { type: Schema.Types.ObjectId, ref: 'Institution', required: false },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
@@ -60,6 +60,9 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  if (!this.passwordHash || typeof this.passwordHash !== 'string') {
+    return false;
+  }
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
@@ -68,8 +71,8 @@ UserSchema.methods.isLocked = function (): boolean {
 };
 
 UserSchema.methods.isAccessAllowedNow = function (): { allowed: boolean; reason?: string } {
-  // Admins are always allowed
-  if (this.role === 'ADMIN') {
+  // Admins are always allowed (case-insensitive)
+  if (this.role && this.role.toUpperCase() === 'ADMIN') {
     return { allowed: true };
   }
 

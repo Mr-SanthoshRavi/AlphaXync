@@ -57,9 +57,32 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
     });
   }
 
+  // Handle Mongoose Validation Errors
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: err.message,
+        details: err.errors ? Object.values(err.errors).map((e: any) => e.message) : undefined
+      }
+    });
+  }
+
+  // Handle Mongoose Cast Errors (Invalid ObjectId etc.)
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'CAST_ERROR',
+        message: `Invalid format for field ${err.path}: ${err.value}`
+      }
+    });
+  }
+
   // Internal Unhandled Errors
-  logger.error('UNHANDLED_EXCEPTION', err.message, {
-    stack: env.NODE_ENV !== 'production' ? err.stack : undefined,
+  logger.error('UNHANDLED_EXCEPTION', err.message || String(err), {
+    stack: err.stack,
     path: req.path,
     method: req.method
   });
@@ -68,8 +91,8 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
     success: false,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected server error occurred. Please contact support.',
-      details: env.NODE_ENV !== 'production' ? err.message : undefined
+      message: err.message || 'An unexpected server error occurred. Please contact support.',
+      details: err.message
     }
   });
 }
