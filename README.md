@@ -108,7 +108,7 @@ npm test
 - `src/tests/e2e_acceptance.test.ts` (9 tests): Complete End-to-End Operational Lifecycle Workflow
 - **Total: 57 / 57 Tests Passing**
 
----
+--- 
 
 ## 🏃 Running the Application Locally
 
