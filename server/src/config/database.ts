@@ -39,7 +39,9 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     // In local development or test (and NOT in serverless lambda), fallback to MongoMemoryServer
     if (env.NODE_ENV !== 'production' && !isServerless) {
       try {
-        const { MongoMemoryServer } = await import('mongodb-memory-server');
+        const memModule = 'mongodb-memory-server';
+        // @ts-ignore
+        const { MongoMemoryServer } = await import(memModule);
         mongoMemoryServerInstance = await MongoMemoryServer.create();
         const memoryUri = mongoMemoryServerInstance.getUri();
         const conn = await mongoose.connect(memoryUri);

@@ -10,7 +10,7 @@ router.use(authenticate);
 router.get('/summary', getDashboardSummary);
 
 // SSE Live Stream Route
-router.get('/live-stream', (req, res) => {
+router.get('/live-stream', (req: any, res: any) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
