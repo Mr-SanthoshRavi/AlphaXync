@@ -28,14 +28,19 @@ export async function connectDatabase(): Promise<typeof mongoose> {
   // In test mode, always isolate from production/development Atlas cluster to protect user data
   if (process.env.NODE_ENV === 'test') {
     try {
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      if (!mongoMemoryServerInstance) {
-        mongoMemoryServerInstance = await MongoMemoryServer.create();
+      const memModule = 'mongodb-memory-server';
+      // @ts-ignore
+      const memPkg: any = await import(memModule);
+      const MongoMemoryServer = memPkg?.MongoMemoryServer;
+      if (MongoMemoryServer) {
+        if (!mongoMemoryServerInstance) {
+          mongoMemoryServerInstance = await MongoMemoryServer.create();
+        }
+        const memoryUri = mongoMemoryServerInstance.getUri();
+        const conn = await mongoose.connect(memoryUri);
+        logger.info('DATABASE_MEMORY_SERVER_TEST', `Connected to isolated test database at ${memoryUri}`);
+        return conn;
       }
-      const memoryUri = mongoMemoryServerInstance.getUri();
-      const conn = await mongoose.connect(memoryUri);
-      logger.info('DATABASE_MEMORY_SERVER_TEST', `Connected to isolated test database at ${memoryUri}`);
-      return conn;
     } catch (memErr: any) {
       logger.warn('DATABASE_MEMORY_SERVER_TEST_WARN', `Could not start isolated memory server: ${memErr.message}`);
     }
@@ -72,7 +77,11 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       try {
         const memModule = 'mongodb-memory-server';
         // @ts-ignore
-        const { MongoMemoryServer } = await import(memModule);
+        const memPkg: any = await import(memModule);
+        const MongoMemoryServer = memPkg?.MongoMemoryServer;
+        if (!MongoMemoryServer) {
+          throw new Error('mongodb-memory-server is not installed in this environment');
+        }
         mongoMemoryServerInstance = await MongoMemoryServer.create();
         const memoryUri = mongoMemoryServerInstance.getUri();
         const conn = await mongoose.connect(memoryUri);
