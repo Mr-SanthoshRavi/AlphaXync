@@ -103,14 +103,32 @@ export async function getValidGoogleCredentials(connection: any): Promise<{ acce
 }
 
 function getGoogleRedirectUri(req: Request): string {
+  // If request came from production domain, prioritize https://xync.alphaprime.co.in
+  const origin = req.headers.origin || req.headers.referer;
+  if (origin && origin.includes('xync.alphaprime.co.in')) {
+    return 'https://xync.alphaprime.co.in/api/connections/google/callback';
+  }
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '');
+  if (host.includes('xync.alphaprime.co.in')) {
+    return 'https://xync.alphaprime.co.in/api/connections/google/callback';
+  }
+  if (host.includes('alphaxync-1.onrender.com')) {
+    return 'https://alphaxync-1.onrender.com/api/connections/google/callback';
+  }
+
   if (process.env.GOOGLE_REDIRECT_URI && !process.env.GOOGLE_REDIRECT_URI.includes('localhost')) {
-    return process.env.GOOGLE_REDIRECT_URI.trim();
+    let uri = process.env.GOOGLE_REDIRECT_URI.trim();
+    // Auto-heal any placeholder 'alphaxync-backend' into real Render host
+    if (uri.includes('alphaxync-backend.onrender.com')) {
+      uri = uri.replace('alphaxync-backend.onrender.com', 'alphaxync-1.onrender.com');
+    }
+    return uri;
   }
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-    return `${proto}://${host}/api/connections/google/callback`;
+
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://xync.alphaprime.co.in/api/connections/google/callback';
   }
+
   return env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/connections/google/callback';
 }
 
