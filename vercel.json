@@ -7,16 +7,16 @@
   "installCommand": "npm install --include=dev && npm --prefix client install --include=dev && npm --prefix server install --include=dev",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "source": "/api/:match*",
+      "destination": "https://alphaxync-1.onrender.com/api/:match*"
     },
     {
-      "source": "/webhooks/(.*)",
-      "destination": "/api/index.ts"
+      "source": "/webhooks/:match*",
+      "destination": "https://alphaxync-1.onrender.com/webhooks/:match*"
     },
     {
       "source": "/health",
-      "destination": "/api/index.ts"
+      "destination": "https://alphaxync-1.onrender.com/health"
     },
     {
       "source": "/((?!api/|webhooks/|health).*)",

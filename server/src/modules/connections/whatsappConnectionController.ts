@@ -37,7 +37,11 @@ export async function getWhatsAppStatus(req: Request, res: Response, next: NextF
     let lastError = baileys.getLastError();
     let hasStoredSession = baileys.hasStoredSession();
 
-    if (dbStatus === 'NOT_CONNECTED' && rawState !== 'CONNECTED') {
+    if (qrDataUrl || rawState === 'QR_REQUIRED') {
+      rawState = 'QR_REQUIRED';
+    } else if (rawState === 'CONNECTING' || rawState === 'RECONNECTING') {
+      // Keep transitional state
+    } else if (dbStatus === 'NOT_CONNECTED' && rawState !== 'CONNECTED') {
       rawState = 'NOT_CONNECTED';
       maskedPhone = null;
     }
