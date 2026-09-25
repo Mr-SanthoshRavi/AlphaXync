@@ -48,11 +48,12 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
   // Handle Mongoose Duplicate Key Error
   if (err.code === 11000) {
     const field = Object.keys(err.keyPattern || {})[0] || 'field';
+    const readableField = field === 'code' ? 'institution code' : field;
     return res.status(409).json({
       success: false,
       error: {
         code: 'DUPLICATE_RESOURCE',
-        message: `A record with this ${field} already exists.`
+        message: `A record with this ${readableField} already exists. Please check your credentials or sign in.`
       }
     });
   }

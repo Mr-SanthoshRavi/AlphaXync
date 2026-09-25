@@ -31,6 +31,21 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       serverSelectionTimeoutMS: 8000
     });
     logger.info('DATABASE_CONNECTED', `Connected to MongoDB at ${resolvedUri.split('@')[1] || resolvedUri}`);
+
+    // Clean up any stale legacy indexes (e.g. username_1 from previous projects on shared clusters)
+    try {
+      const usersColl = conn.connection.db?.collection('users');
+      if (usersColl) {
+        const indexes = await usersColl.indexes();
+        if (indexes.some(idx => idx.name === 'username_1')) {
+          await usersColl.dropIndex('username_1');
+          logger.info('DATABASE_INDEX_CLEANUP', 'Successfully dropped legacy username_1 unique index from users');
+        }
+      }
+    } catch {
+      // Non-blocking index migration
+    }
+
     return conn;
   } catch (error: any) {
     logger.warn('DATABASE_PRIMARY_FAILED', `Could not connect to ${env.MONGODB_URI}: ${error.message}. Checking in-memory fallback...`);
