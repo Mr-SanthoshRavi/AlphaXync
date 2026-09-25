@@ -106,13 +106,24 @@ export async function getValidGoogleCredentials(connection: any): Promise<{ acce
   };
 }
 
-export const GOOGLE_AUTH_SCOPES = [
+// Standard Non-Sensitive Scopes for Google SSO Login (No Google Verification Required!)
+export const GOOGLE_LOGIN_SCOPES = [
+  'openid',
+  'email',
+  'profile'
+].join(' ');
+
+// Sensitive Scopes for Google Sheets & Drive Sync (Only used when connecting Sheets)
+export const GOOGLE_SHEETS_SCOPES = [
   'openid',
   'email',
   'profile',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive.readonly'
 ].join(' ');
+
+// Backward compatibility alias
+export const GOOGLE_AUTH_SCOPES = GOOGLE_SHEETS_SCOPES;
 
 export function getGoogleRedirectUri(req: Request): string {
   // If request came from production domain, prioritize https://xync.alphaprime.co.in

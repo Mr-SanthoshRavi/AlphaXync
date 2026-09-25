@@ -13,7 +13,7 @@ import { AuditLog } from '../../models/AuditLog';
 import { captchaService } from './captchaService';
 import { generateSecureToken } from '../../utils/crypto';
 import { env } from '../../config/env';
-import { getGoogleRedirectUri, GOOGLE_AUTH_SCOPES } from '../connections/googleConnectionController';
+import { getGoogleRedirectUri, GOOGLE_LOGIN_SCOPES, GOOGLE_AUTH_SCOPES } from '../connections/googleConnectionController';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -1107,8 +1107,8 @@ export async function getGoogleLoginUrl(req: Request, res: Response, next: NextF
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
       clientId
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(
-      GOOGLE_AUTH_SCOPES
-    )}&access_type=offline&prompt=consent&state=${state}`;
+      GOOGLE_LOGIN_SCOPES
+    )}&access_type=offline&prompt=select_account&state=${state}`;
 
     logger.info('AUTH_GOOGLE_URL_REQUESTED', `Generated Google Login URL with redirect: ${redirectUri}`);
 
