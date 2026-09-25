@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { z } from 'zod';
 import '../../middleware/auth';
 import { DataConnection } from '../../models/DataConnection';
+import { Student } from '../../models/Student';
 import { AuditLog } from '../../models/AuditLog';
 import { encrypt, decrypt, generateSecureToken } from '../../utils/crypto';
 import { env, isMockMode } from '../../config/env';
@@ -397,6 +398,14 @@ export async function selectGoogleSpreadsheet(req: Request, res: Response, next:
 
     const targetTab = sheetReference || (tabs.find((t: any) => t.title.toLowerCase().includes('student'))?.title || tabs[0]?.title || 'Students_Master');
 
+    if (connection.fileReference && connection.fileReference !== cleanSpreadsheetId) {
+      // Switched spreadsheet: mark previous student cache as unlinked
+      await Student.updateMany(
+        { institutionId, sourceProvider: 'google_sheets' },
+        { $set: { status: 'SOURCE_UNLINKED' } }
+      );
+    }
+
     connection.fileReference = cleanSpreadsheetId;
     connection.sheetReference = targetTab;
     connection.status = 'CONNECTED';
@@ -519,7 +528,21 @@ export async function disconnectGoogle(req: Request, res: Response, next: NextFu
       connection.credentialsEncrypted = undefined;
       connection.syncStatus = 'Google Sheets not connected';
       connection.fileReference = undefined;
+      connection.metrics = {
+        rowsRead: 0,
+        rowsAdded: 0,
+        rowsUpdated: 0,
+        rowsSkipped: 0,
+        rowsInvalid: 0,
+        rowsConflicted: 0
+      };
       await connection.save();
+
+      // Deactivate students synced from this unlinked provider so UI displays clean empty state
+      await Student.updateMany(
+        { institutionId, sourceProvider: 'google_sheets' },
+        { $set: { status: 'SOURCE_UNLINKED' } }
+      );
 
       await AuditLog.create({
         institutionId,

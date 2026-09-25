@@ -5,6 +5,7 @@ import { FeeAccount } from '../../models/FeeAccount';
 import { Payment } from '../../models/Payment';
 import { Message } from '../../models/Message';
 import { SyncConflict } from '../../models/SyncConflict';
+import { DataConnection } from '../../models/DataConnection';
 import { AppError } from '../../middleware/errorHandler';
 
 export async function getStudents(req: Request, res: Response, next: NextFunction) {
@@ -38,6 +39,28 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.max(1, Math.min(100, Number(limit)));
     const skip = (pageNum - 1) * limitNum;
+
+    // Check if institution's spreadsheet is actively linked & connected
+    const connection = await DataConnection.findOne({ institutionId, provider: 'google_sheets' });
+    const isSourceActive = connection && connection.status === 'CONNECTED' && !!connection.fileReference;
+
+    // If source spreadsheet is unlinked/disconnected, return empty roster for active queries
+    if (!isSourceActive && (!status || status === 'ACTIVE')) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          students: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: limitNum,
+            pages: 0
+          },
+          isSourceActive: false,
+          connectionStatus: connection?.status || 'DISCONNECTED'
+        }
+      });
+    }
 
     // Fetch students
     const [students, total] = await Promise.all([

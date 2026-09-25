@@ -15,24 +15,30 @@ export async function getDashboardSummary(req: Request, res: Response, next: Nex
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
+    const connection = await DataConnection.findOne({ institutionId, provider: 'google_sheets' });
+    const isSourceActive = connection && connection.status === 'CONNECTED' && !!connection.fileReference;
+
     // 1. Top Cards (Strictly active students from connected source of truth)
-    const totalStudents = await Student.countDocuments({ institutionId, status: 'ACTIVE' });
+    const totalStudents = isSourceActive ? await Student.countDocuments({ institutionId, status: 'ACTIVE' }) : 0;
 
-    const activeStudents = await Student.find({ institutionId, status: 'ACTIVE' }).select('_id');
-    const activeStudentIds = activeStudents.map((s) => s._id);
-
-    const feeAccounts = await FeeAccount.find({ institutionId, studentId: { $in: activeStudentIds } });
     let totalDue = 0;
     let totalCollected = 0;
     let totalPending = 0;
     let totalOverdue = 0;
 
-    for (const fa of feeAccounts) {
-      totalDue += fa.totalAmount;
-      totalCollected += fa.paidAmount;
-      totalPending += fa.balance;
-      if (fa.status === 'OVERDUE') {
-        totalOverdue += fa.balance;
+    if (isSourceActive) {
+      const activeStudents = await Student.find({ institutionId, status: 'ACTIVE' }).select('_id');
+      const activeStudentIds = activeStudents.map((s) => s._id);
+
+      const feeAccounts = await FeeAccount.find({ institutionId, studentId: { $in: activeStudentIds } });
+
+      for (const fa of feeAccounts) {
+        totalDue += fa.totalAmount;
+        totalCollected += fa.paidAmount;
+        totalPending += fa.balance;
+        if (fa.status === 'OVERDUE') {
+          totalOverdue += fa.balance;
+        }
       }
     }
 
@@ -104,8 +110,6 @@ export async function getDashboardSummary(req: Request, res: Response, next: Nex
     const recentLogs = await AuditLog.find({ institutionId })
       .sort({ timestamp: -1 })
       .limit(10);
-
-    const connection = await DataConnection.findOne({ institutionId });
 
     return res.status(200).json({
       success: true,

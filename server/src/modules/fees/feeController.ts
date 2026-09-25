@@ -24,6 +24,27 @@ export async function getFees(req: Request, res: Response, next: NextFunction) {
     const limitNum = Math.max(1, Math.min(100, Number(limit)));
     const skip = (pageNum - 1) * limitNum;
 
+    // Check if institution's spreadsheet is actively linked & connected
+    const connection = await DataConnection.findOne({ institutionId, provider: 'google_sheets' });
+    const isSourceActive = connection && connection.status === 'CONNECTED' && !!connection.fileReference;
+
+    if (!isSourceActive) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          fees: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: limitNum,
+            pages: 0
+          },
+          isSourceActive: false,
+          connectionStatus: connection?.status || 'DISCONNECTED'
+        }
+      });
+    }
+
     const activeStudents = await Student.find({ institutionId, status: 'ACTIVE' }).select('_id');
     const activeStudentIds = activeStudents.map((s) => s._id);
     filter.studentId = { $in: activeStudentIds };

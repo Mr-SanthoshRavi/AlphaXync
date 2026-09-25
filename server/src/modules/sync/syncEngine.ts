@@ -159,7 +159,6 @@ export async function runSync(connectionId: string, customAdapter?: DataSourceAd
 
       let student = await Student.findOne({
         institutionId,
-        academicYear,
         externalStudentId
       });
 
@@ -208,6 +207,12 @@ export async function runSync(connectionId: string, customAdapter?: DataSourceAd
         metrics.rowsAdded++;
       } else {
         // --- EXISTING STUDENT ---
+        if (student.status !== 'ACTIVE') {
+          student.status = 'ACTIVE';
+          student.lastSourceSyncAt = new Date();
+          await student.save();
+        }
+
         if (student.sourceHash === sourceHash) {
           // No changes detected
           metrics.rowsSkipped++;
@@ -323,7 +328,6 @@ export async function runSync(connectionId: string, customAdapter?: DataSourceAd
     // Identify disappeared students (Rule 41: SOURCE_MISSING, never hard-delete)
     const activeStudents = await Student.find({
       institutionId,
-      academicYear,
       status: 'ACTIVE'
     });
 
