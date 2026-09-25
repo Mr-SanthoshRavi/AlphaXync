@@ -396,7 +396,7 @@ export const api = {
       minSendIntervalMs?: number;
       concurrency?: number;
     }>('/connections/whatsapp/status'),
-  connectWhatsApp: () => request<{ state: string; message: string }>('/connections/whatsapp/connect', { method: 'POST' }),
+  connectWhatsApp: () => request<{ state: string; message: string; qrCode?: string | null }>('/connections/whatsapp/connect', { method: 'POST' }),
   refreshWhatsAppQr: () => request<{ state: string; qrCode: string | null; message: string }>('/connections/whatsapp/refresh-qr', { method: 'POST' }),
   disconnectWhatsApp: () => request<{ state: string; message: string }>('/connections/whatsapp/disconnect', { method: 'POST' }),
   logoutWhatsApp: () => request<{ state: string; message: string }>('/connections/whatsapp/logout', { method: 'POST' }),

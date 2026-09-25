@@ -106,6 +106,15 @@ const AppShell: React.FC = () => {
         }
       });
 
+      eventSource.addEventListener('WHATSAPP_CONNECTION_UPDATE', (event: any) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleUpdate('WHATSAPP_CONNECTION_UPDATE', data);
+        } catch (e) {
+          handleUpdate('WHATSAPP_CONNECTION_UPDATE', {});
+        }
+      });
+
       eventSource.onerror = () => {
         // SSE gracefully reconnects automatically
       };

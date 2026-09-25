@@ -122,9 +122,40 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
     return this.lastError;
   }
 
-  async initialize(): Promise<void> {
-    if (this.socket) {
+  async waitForQrOrConnection(timeoutMs = 6000): Promise<{ state: WhatsAppConnectionState; qrCode: string | null }> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.qrDataUrl || this.state === 'CONNECTED' || this.state === 'QR_REQUIRED') {
+        return { state: this.state, qrCode: this.qrDataUrl };
+      }
+      if (this.state === 'ERROR' || this.state === 'LOGGED_OUT') {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return { state: this.state, qrCode: this.qrDataUrl };
+  }
+
+  async initialize(forceFresh = false): Promise<void> {
+    if (this.socket && !forceFresh && (this.state === 'CONNECTED' || this.state === 'QR_REQUIRED')) {
       return;
+    }
+
+    if (this.socket) {
+      try {
+        this.socket.end(undefined);
+      } catch (e) {}
+      this.socket = null;
+    }
+
+    // If forcing a fresh QR generation and not yet authenticated, clean up stale/partial auth files
+    if (forceFresh && this.state !== 'CONNECTED') {
+      try {
+        if (fs.existsSync(this.authDir)) {
+          fs.rmSync(this.authDir, { recursive: true, force: true });
+          fs.mkdirSync(this.authDir, { recursive: true });
+        }
+      } catch (e) {}
     }
 
     const baileys = getBaileysModule();
@@ -143,6 +174,8 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
     try {
       this.state = 'CONNECTING';
       this.lastError = null;
+      this.qrCode = null;
+      this.qrDataUrl = null;
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
 
       this.socket = makeWASocket({
@@ -192,6 +225,7 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
           if (this.isExplicitDisconnect) {
             this.isExplicitDisconnect = false;
             this.reconnectAttempts = 0;
+            this.socket = null;
             return;
           }
 
@@ -200,6 +234,8 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
 
           if (statusCode === DisconnectReason.loggedOut) {
             this.state = 'LOGGED_OUT';
+            this.socket = null;
+            this.reconnectAttempts = 0;
             this.maskedPhone = null;
             this.userPhone = null;
             this.lastError = 'WhatsApp account needs to be linked again.';
@@ -233,6 +269,8 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
             }, backoff);
           } else {
             this.state = 'ERROR';
+            this.socket = null;
+            this.reconnectAttempts = 0;
             this.lastError = 'Unable to maintain WhatsApp connection. Please try again.';
             logger.error('BAILEYS_CONNECTION_FAILED', `Max reconnect attempts reached or unrecoverable: ${statusCode}`);
             broadcastEvent('all', 'WHATSAPP_CONNECTION_UPDATE', {

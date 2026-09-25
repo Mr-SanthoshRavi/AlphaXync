@@ -214,6 +214,21 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     loadSettings();
     loadWhatsAppStatus();
+
+    const handleDataUpdated = (e: any) => {
+      const detail = e.detail;
+      if (detail?.type === 'WHATSAPP_CONNECTION_UPDATE') {
+        setWaStatus((prev) => ({
+          ...prev,
+          state: detail.state || prev.state,
+          qrCode: detail.qrCode !== undefined ? (detail.qrCode || null) : prev.qrCode,
+          statusText: detail.statusText || prev.statusText
+        }));
+      }
+    };
+
+    window.addEventListener('campusflow:data-updated', handleDataUpdated);
+    return () => window.removeEventListener('campusflow:data-updated', handleDataUpdated);
   }, []);
 
   // Auto-polling when waiting for QR scan or connection
@@ -249,11 +264,26 @@ export const SettingsPage: React.FC = () => {
   const handleConnectWhatsApp = async () => {
     try {
       setWaLoading(true);
+      setWaStatus((prev) => ({
+        ...prev,
+        state: 'CONNECTING',
+        statusText: 'Connecting to WhatsApp Web & generating QR code...'
+      }));
       setToast('Initiating WhatsApp connection and generating QR...');
-      await api.connectWhatsApp();
-      await loadWhatsAppStatus();
+      const res = await api.connectWhatsApp();
+      if (res?.qrCode) {
+        setWaStatus((prev) => ({
+          ...prev,
+          state: 'QR_REQUIRED',
+          qrCode: res.qrCode || null,
+          statusText: 'Scan this QR code with the WhatsApp account you want to use.'
+        }));
+      } else {
+        await loadWhatsAppStatus();
+      }
     } catch (err: any) {
       setToast(`Connection error: ${err.message || 'Failed to start connection'}`);
+      await loadWhatsAppStatus();
     } finally {
       setWaLoading(false);
       setTimeout(() => setToast(null), 4000);
@@ -264,10 +294,20 @@ export const SettingsPage: React.FC = () => {
     try {
       setWaLoading(true);
       setToast('Requesting fresh QR code from WhatsApp Web...');
-      await api.refreshWhatsAppQr();
-      await loadWhatsAppStatus();
+      const res = await api.refreshWhatsAppQr();
+      if (res?.qrCode) {
+        setWaStatus((prev) => ({
+          ...prev,
+          state: 'QR_REQUIRED',
+          qrCode: res.qrCode || null,
+          statusText: 'Scan this QR code with the WhatsApp account you want to use.'
+        }));
+      } else {
+        await loadWhatsAppStatus();
+      }
     } catch (err: any) {
       setToast(`Refresh error: ${err.message || 'Failed to refresh QR'}`);
+      await loadWhatsAppStatus();
     } finally {
       setWaLoading(false);
       setTimeout(() => setToast(null), 4000);

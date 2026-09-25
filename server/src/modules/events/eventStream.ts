@@ -19,7 +19,7 @@ export function removeEventClient(id: string) {
 export function broadcastEvent(institutionId: string, event: string, data: any) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   clients
-    .filter((c) => c.institutionId === institutionId)
+    .filter((c) => institutionId === 'all' || c.institutionId === institutionId)
     .forEach((c) => {
       try {
         c.res.write(payload);
