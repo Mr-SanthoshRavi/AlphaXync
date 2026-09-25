@@ -539,7 +539,7 @@ export class CaptchaService {
 
     // 2. Official Google reCAPTCHA v2 / v3 verification
     try {
-      const secretKey = (env as any).RECAPTCHA_SECRET_KEY || '6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj';
+      const secretKey = (env as any).RECAPTCHA_SECRET_KEY || process.env.RECAPTCHA_SECRET_KEY || '';
       const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

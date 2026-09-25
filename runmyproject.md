@@ -180,23 +180,23 @@ AlphaXync சிஸ்டத்தில் **WhatsApp Web (Baileys QR Scan)** 2
 ```env
 NODE_ENV=production
 PORT=5000
-MONGODB_URI=mongodb+srv://studifydb:sandy123@alpharoom.2me2xjx.mongodb.net/?appName=Alpharoom
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/campusflow?retryWrites=true&w=majority
 SESSION_SECRET=campusflow_super_secret_session_key_32bytes_min
 JWT_SECRET=campusflow_jwt_access_secret_key_2026_x992
 JWT_REFRESH_SECRET=campusflow_jwt_refresh_secret_key_2026_y883
 ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-RESEND_KEY=re_g6zoXagc_NmQa117W5dTCdS27wN8JDsqB
+RESEND_KEY=<YOUR_RESEND_API_KEY>
 
 # Cloudinary
-CLOUDINARY_API_KEY=933662793875848
-CLOUDINARY_API_SECRET=RytawIRzXJIYxbTiva7t5TJ8GTI
-CLOUDINARY_NAME=bqzs1991
+CLOUDINARY_API_KEY=<YOUR_CLOUDINARY_API_KEY>
+CLOUDINARY_API_SECRET=<YOUR_CLOUDINARY_API_SECRET>
+CLOUDINARY_NAME=<YOUR_CLOUDINARY_NAME>
 
 # Razorpay
 PAYMENT_MODE=test
-RAZORPAY_KEY_ID=rzp_test_Tejked95D4vLYJ
-RAZORPAY_KEY_SECRET=jBZKTurn6HniCghBEH7rjcUA
-RAZORPAY_WEBHOOK_SECRET=rzp_webhook_secret_mock998877
+RAZORPAY_KEY_ID=<YOUR_RAZORPAY_KEY_ID>
+RAZORPAY_KEY_SECRET=<YOUR_RAZORPAY_KEY_SECRET>
+RAZORPAY_WEBHOOK_SECRET=<YOUR_RAZORPAY_WEBHOOK_SECRET>
 
 # Real WhatsApp Baileys & Real Mode (NO MOCK!)
 WHATSAPP_PROVIDER=baileys
@@ -209,15 +209,15 @@ CIRCUIT_BREAKER_FAILURES=5
 CLIENT_URL=https://xync.alphaprime.co.in
 
 # Google Sheets OAuth
-GOOGLE_CLIENT_ID=1026636982173-nj1kulf07n0mk84g4b5ie922q368mfkm.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
-GOOGLE_REDIRECT_URI=https://alphaxync-backend.onrender.com/api/connections/google/callback
+GOOGLE_CLIENT_ID=<YOUR_GOOGLE_CLIENT_ID>
+GOOGLE_CLIENT_SECRET=<YOUR_GOOGLE_CLIENT_SECRET>
+GOOGLE_REDIRECT_URI=https://<your-render-backend-url>/api/connections/google/callback
 
 # AI & Captcha
-AI_ENABLED=true
-AI_PROVIDER_KEY=AQ.Ab8RN6K6PmIqNAxN0_raS9mxN1YnIW93eQC55QDE3Tkg8gjr_g
-RECAPTCHA_SITE_KEY=6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor
-RECAPTCHA_SECRET_KEY=6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj
+AI_ENABLED=false
+AI_PROVIDER_KEY=<YOUR_AI_PROVIDER_KEY>
+RECAPTCHA_SITE_KEY=<YOUR_RECAPTCHA_SITE_KEY>
+RECAPTCHA_SECRET_KEY=<YOUR_RECAPTCHA_SECRET_KEY>
 ```
 *(குறிப்பு: உங்கள் Render URL வந்ததும் `GOOGLE_REDIRECT_URI`-ல் அந்த சரியான Render URL-ஐ மாற்றவும்).*
 
@@ -239,8 +239,8 @@ RECAPTCHA_SECRET_KEY=6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj
 4. **Vercel Environment Variables** (Settings ➔ Environment Variables):
    இங்கே **2 மாறிகள் மட்டுமே போதுமானது** (Mock mode எதையும் சேர்க்க வேண்டாம்!):
 ```env
-VITE_API_URL=https://alphaxync-backend.onrender.com
-VITE_RECAPTCHA_SITE_KEY=6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor
+VITE_API_URL=https://<your-render-backend-url>
+VITE_RECAPTCHA_SITE_KEY=<YOUR_RECAPTCHA_SITE_KEY>
 ```
 *(குறிப்பு: `VITE_API_URL`-ல் உங்கள் உண்மையான Render Backend URL-ஐ உள்ளிடவும்).*
 

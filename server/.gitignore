@@ -3,8 +3,12 @@ node_modules/
 
 # Environment files with live database & API keys
 .env
-.env.*
-*.env 
+.env*
+*.env
+**/.env*
+*.pem
+*.key
+credentials.json
 
 # Compiled outputs
 dist/

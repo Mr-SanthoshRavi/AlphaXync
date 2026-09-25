@@ -42,8 +42,8 @@ const envSchema = z.object({
   APP_MODE: z.enum(['real', 'mock']).default('real'),
   USE_MOCK_PROVIDERS: z.coerce.boolean().default(false),
 
-  RECAPTCHA_SITE_KEY: z.string().optional().default('6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor'),
-  RECAPTCHA_SECRET_KEY: z.string().optional().default('6LdaGswtAAAAACH7qhvXLM2b7VS2mp2fuiAKjXSj')
+  RECAPTCHA_SITE_KEY: z.string().optional().default(''),
+  RECAPTCHA_SECRET_KEY: z.string().optional().default('')
 });
 
 const parsed = envSchema.safeParse(process.env);

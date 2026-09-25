@@ -5,12 +5,17 @@ node_modules/
 
 # Environment variables & secrets (CRITICAL: Never commit to Git or public repo)
 .env
-.env.local
-.env.development
-.env.test
-.env.production
-.env.*.local
+.env*
 *.env
+**/.env
+**/.env*
+**/*.env
+*.pem
+*.key
+*.cert
+*.crt
+credentials.json
+token.json
 
 # Build outputs
 dist/

@@ -36,7 +36,7 @@ export const GoogleRecaptcha = React.forwardRef<GoogleRecaptchaRef, GoogleRecapt
     {
       onVerify,
       onExpire,
-      siteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || '6LdaGswtAAAAADrMcAW3-eMPm1zirbF2EbluTQor',
+      siteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || '',
       className = ''
     },
     ref
