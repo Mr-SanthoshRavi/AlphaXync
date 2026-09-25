@@ -1086,6 +1086,22 @@ export async function verifyAndResetPassword(req: Request, res: Response, next: 
  */
 export async function getGoogleLoginUrl(req: Request, res: Response, next: NextFunction) {
   try {
+    const captchaToken =
+      (req.query.captchaToken as string) ||
+      (req.headers['x-captcha-token'] as string);
+
+    // Enforce CAPTCHA security challenge before initiating Google Sign-In (exempt only during unit tests)
+    if (process.env.NODE_ENV !== 'test') {
+      const isCaptchaValid = await captchaService.verifyCaptchaVerificationToken(captchaToken);
+      if (!isCaptchaValid) {
+        throw new AppError(
+          'CAPTCHA_REQUIRED',
+          'Human verification required before initiating Google Sign-In. Please complete the security challenge.',
+          400
+        );
+      }
+    }
+
     const clientId = (process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '').trim();
     const redirectUri = getGoogleRedirectUri(req);
 

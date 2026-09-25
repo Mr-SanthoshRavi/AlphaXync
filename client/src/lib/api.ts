@@ -139,7 +139,10 @@ export const api = {
       setStoredToken(null);
     }
   },
-  getGoogleLoginUrl: () => request<{ authUrl: string; redirectUri: string }>('/auth/google/url'),
+  getGoogleLoginUrl: (captchaToken?: string) =>
+    request<{ authUrl: string; redirectUri: string }>(
+      `/auth/google/url${captchaToken ? `?captchaToken=${encodeURIComponent(captchaToken)}` : ''}`
+    ),
 
   // Password Reset Flow
   sendForgotPasswordOtp: (email: string) =>
