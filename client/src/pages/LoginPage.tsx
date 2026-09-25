@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
-import { GoogleRecaptcha } from '../components/auth/GoogleRecaptcha';
-import { VisualCaptchaModal } from '../components/auth/VisualCaptchaModal';
-import { CaptchaTriggerCard } from '../components/auth/CaptchaTriggerCard';
+import { GoogleRecaptcha, type GoogleRecaptchaRef } from '../components/auth/GoogleRecaptcha';
 
 interface LoginPageProps {
   onGoToSetup?: () => void;
@@ -17,10 +15,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Security Verification State
+  // Security Verification State (Official Google reCAPTCHA v2)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [useVisualCaptcha, setUseVisualCaptcha] = useState(false);
-  const [showVisualModal, setShowVisualModal] = useState(false);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const recaptchaRef = useRef<GoogleRecaptchaRef>(null);
 
   // First-Time Login OTP State
   const [otpRequired, setOtpRequired] = useState(false);
@@ -58,33 +56,55 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
     return () => clearInterval(timer);
   }, [showForgotPassword, forgotStep, forgotCooldown]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter both email and password');
-      return;
-    }
-
-    if (!captchaToken) {
-      setError('Please complete the security verification challenge to proceed.');
-      return;
-    }
-
+  const performLogin = async (loginEmail: string, loginPass: string, token: string) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await login(email.trim(), password, captchaToken);
+      const res = await login(loginEmail, loginPass, token);
       if (res?.requiresOtp) {
         setOtpRequired(true);
         setOtp('');
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please verify credentials.');
-      if (err?.code === 'CAPTCHA_REQUIRED' || err?.code === 'CAPTCHA_VERIFICATION_FAILED') {
-        setCaptchaToken(null);
-      }
+      setCaptchaToken(null);
+      recaptchaRef.current?.reset();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError('Please enter both work email and password.');
+      return;
+    }
+
+    // Only when user fills email & password and clicks sign in, captcha challenge appears
+    if (!showCaptcha) {
+      setShowCaptcha(true);
+      return;
+    }
+
+    if (!captchaToken) {
+      setError('Please check the "I am not a robot" Google reCAPTCHA checkbox to proceed.');
+      return;
+    }
+
+    await performLogin(cleanEmail, password, captchaToken);
+  };
+
+  const handleCaptchaVerify = async (token: string) => {
+    setCaptchaToken(token);
+    setError(null);
+
+    const cleanEmail = email.trim();
+    if (cleanEmail && password) {
+      await performLogin(cleanEmail, password, token);
     }
   };
 
@@ -560,51 +580,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                   </div>
                 </div>
 
-                {/* Security Verification: Google reCAPTCHA or Visual Shield Challenge */}
-                {!useVisualCaptcha ? (
-                  <div>
+                {/* Security Verification: Google reCAPTCHA v2 (Shown when credentials submitted) */}
+                {showCaptcha && (
+                  <div className="pt-1 pb-1 animate-fade-in flex flex-col items-center">
+                    <div className="w-full flex items-center justify-between mb-1.5 px-1">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
+                        Security Verification
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
+                    </div>
                     <GoogleRecaptcha
-                      onVerify={(token) => {
-                        setCaptchaToken(token);
-                        setError(null);
-                      }}
+                      ref={recaptchaRef}
+                      onVerify={handleCaptchaVerify}
                       onExpire={() => setCaptchaToken(null)}
-                      onFallbackRequest={() => {
-                        setUseVisualCaptcha(true);
-                        setShowVisualModal(true);
-                      }}
                     />
-                    <div className="text-center mt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUseVisualCaptcha(true);
-                          setShowVisualModal(true);
-                        }}
-                        className="text-[11px] text-slate-500 hover:text-blue-600 transition-colors cursor-pointer border-0 outline-none bg-transparent"
-                      >
-                        Having trouble? Try Visual Picture Challenge
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <CaptchaTriggerCard
-                      onTrigger={() => setShowVisualModal(true)}
-                      isVerified={Boolean(captchaToken)}
-                    />
-                    <div className="text-center mt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUseVisualCaptcha(false);
-                          setCaptchaToken(null);
-                        }}
-                        className="text-[11px] text-slate-500 hover:text-blue-600 transition-colors cursor-pointer border-0 outline-none bg-transparent"
-                      >
-                        Switch back to Google reCAPTCHA
-                      </button>
-                    </div>
+                    {!captchaToken && (
+                      <p className="text-[11px] text-slate-500 mt-1 text-center">
+                        Tick the "I'm not a robot" box above to continue
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -620,7 +615,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                     </>
                   ) : (
                     <>
-                      <span>Sign In to Console</span>
+                      <span>{showCaptcha && !captchaToken ? 'Verify & Sign In' : 'Sign In to Console'}</span>
                       <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                     </>
                   )}
@@ -725,16 +720,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
         )}
       </div>
 
-      {/* Visual Captcha Challenge Modal */}
-      <VisualCaptchaModal
-        isOpen={showVisualModal}
-        onClose={() => setShowVisualModal(false)}
-        onSuccess={(token) => {
-          setCaptchaToken(token);
-          setError(null);
-          setShowVisualModal(false);
-        }}
-      />
     </div>
   );
 };
