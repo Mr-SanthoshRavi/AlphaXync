@@ -139,6 +139,7 @@ export const api = {
       setStoredToken(null);
     }
   },
+  getGoogleLoginUrl: () => request<{ authUrl: string; redirectUri: string }>('/auth/google/url'),
 
   // Password Reset Flow
   sendForgotPasswordOtp: (email: string) =>

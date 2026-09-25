@@ -15,10 +15,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Security Verification State (Official Google reCAPTCHA v2)
+  // Security Verification State (Official Google reCAPTCHA v2 - Visible on page load)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [showCaptcha, setShowCaptcha] = useState(false);
   const recaptchaRef = useRef<GoogleRecaptchaRef>(null);
+
+  // Google SSO State
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // First-Time Login OTP State
   const [otpRequired, setOtpRequired] = useState(false);
@@ -38,6 +40,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   const [forgotCooldown, setForgotCooldown] = useState(60);
   const [canResendForgot, setCanResendForgot] = useState(false);
 
+  // Check URL query parameters for OAuth errors / whitelist rejection on load
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlError = params.get('error');
+      const errEmail = params.get('email');
+      const customMsg = params.get('message');
+
+      if (urlError) {
+        if (urlError === 'ACCESS_DENIED_UNREGISTERED' || urlError === 'UNAUTHORIZED_GOOGLE_ACCOUNT') {
+          setError(
+            `Access Denied: The Google account "${errEmail || 'selected'}" is not registered in AlphaXync. ` +
+            `Only staff and administrators authorized by the institution administrator can sign in. ` +
+            `Please contact your Admin to add your email in Settings -> Staff Accounts.`
+          );
+        } else if (urlError === 'ACCOUNT_DEACTIVATED') {
+          setError(`Access Suspended: The account "${errEmail || ''}" has been deactivated by the Administrator.`);
+        } else if (urlError === 'ACCOUNT_LOCKED') {
+          setError(`Account Locked: Account "${errEmail || ''}" is temporarily locked due to repeated failed login attempts.`);
+        } else if (urlError === 'ACCESS_RESTRICTED') {
+          setError(`Access Restricted: ${decodeURIComponent(customMsg || 'Staff access is outside assigned shift hours.')}`);
+        } else if (urlError === 'NO_EMAIL_PROVIDED' || urlError === 'UNVERIFIED_GOOGLE_EMAIL') {
+          setError('Google did not provide a verified email address. Please use a valid Google account.');
+        } else {
+          setError(`Google Sign-In was cancelled or failed: ${decodeURIComponent(urlError)}`);
+        }
+
+        // Clean query parameters from URL
+        params.delete('error');
+        params.delete('email');
+        params.delete('message');
+        const remaining = params.toString();
+        const newUrl = `${window.location.pathname}${remaining ? `?${remaining}` : ''}`;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch {}
+  }, []);
+
   // Countdown timer for forgot password OTP resend
   useEffect(() => {
     let timer: any;
@@ -55,6 +95,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
     }
     return () => clearInterval(timer);
   }, [showForgotPassword, forgotStep, forgotCooldown]);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      const res = await api.getGoogleLoginUrl();
+      if (res?.authUrl) {
+        window.location.href = res.authUrl;
+      } else {
+        setError('Failed to initiate Google Login. Please verify server environment configuration.');
+        setGoogleLoading(false);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to connect to Google authentication service.');
+      setGoogleLoading(false);
+    }
+  };
 
   const performLogin = async (loginEmail: string, loginPass: string, token: string) => {
     try {
@@ -84,14 +141,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
       return;
     }
 
-    // Only when user fills email & password and clicks sign in, captcha challenge appears
-    if (!showCaptcha) {
-      setShowCaptcha(true);
-      return;
-    }
-
     if (!captchaToken) {
-      setError('Please check the "I am not a robot" Google reCAPTCHA checkbox to proceed.');
+      setError('Please complete the Google reCAPTCHA "I am not a robot" check to proceed.');
       return;
     }
 
@@ -580,33 +631,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                   </div>
                 </div>
 
-                {/* Security Verification: Google reCAPTCHA v2 (Shown when credentials submitted) */}
-                {showCaptcha && (
-                  <div className="pt-1 pb-1 animate-fade-in flex flex-col items-center">
-                    <div className="w-full flex items-center justify-between mb-1.5 px-1">
-                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
-                        Security Verification
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
-                    </div>
-                    <GoogleRecaptcha
-                      ref={recaptchaRef}
-                      onVerify={handleCaptchaVerify}
-                      onExpire={() => setCaptchaToken(null)}
-                    />
-                    {!captchaToken && (
-                      <p className="text-[11px] text-slate-500 mt-1 text-center">
-                        Tick the "I'm not a robot" box above to continue
-                      </p>
-                    )}
+                {/* Security Verification: Google reCAPTCHA v2 (Visible immediately before login) */}
+                <div className="pt-2 pb-1 animate-fade-in flex flex-col items-center">
+                  <div className="w-full flex items-center justify-between mb-1.5 px-1">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
+                      Security Verification
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
                   </div>
-                )}
+                  <GoogleRecaptcha
+                    ref={recaptchaRef}
+                    onVerify={handleCaptchaVerify}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
+                  {!captchaToken && (
+                    <p className="text-[11px] text-slate-500 mt-1 text-center">
+                      Tick the "I'm not a robot" box above to enable sign-in
+                    </p>
+                  )}
+                </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer border-0 outline-none mt-2"
+                  disabled={loading || !captchaToken}
+                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-0 outline-none mt-2"
                 >
                   {loading ? (
                     <>
@@ -615,8 +664,57 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
                     </>
                   ) : (
                     <>
-                      <span>{showCaptcha && !captchaToken ? 'Verify & Sign In' : 'Sign In to Console'}</span>
+                      <span>{!captchaToken ? 'Check reCAPTCHA to Sign In' : 'Sign In to Console'}</span>
                       <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Divider */}
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[11px] uppercase">
+                    <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">
+                      or continue with
+                    </span>
+                  </div>
+                </div>
+
+                {/* Direct Google SSO Button */}
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  className="w-full h-12 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-slate-700 font-semibold text-sm rounded-xl shadow-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer outline-none focus:ring-4 focus:ring-slate-100 disabled:opacity-60"
+                >
+                  {googleLoading ? (
+                    <>
+                      <span className="material-symbols-outlined text-[18px] animate-spin text-slate-500">progress_activity</span>
+                      <span className="text-slate-600 font-medium">Connecting to Google...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>Sign in with Google</span>
                     </>
                   )}
                 </button>

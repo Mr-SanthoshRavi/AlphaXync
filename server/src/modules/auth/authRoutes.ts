@@ -14,13 +14,19 @@ import {
   updateStaffUser,
   deleteStaffUser,
   sendForgotPasswordOtp,
-  verifyAndResetPassword
+  verifyAndResetPassword,
+  getGoogleLoginUrl
 } from './authController';
+import { handleGoogleOAuthCallback } from '../connections/googleConnectionController';
 import { getCaptchaChallenge, verifyCaptchaChallenge } from './captchaController';
 import { authenticate, requireAdmin } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
+
+// Google SSO Authentication (Unified with Google Sheets/Drive scopes)
+router.get('/google/url', getGoogleLoginUrl);
+router.get('/google/callback', handleGoogleOAuthCallback);
 
 // CAPTCHA Security Challenge
 router.get('/captcha/challenge', getCaptchaChallenge);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api } from '../lib/api';
+import { api, setStoredToken } from '../lib/api';
 
 export interface UserProfile {
   id: string;
@@ -113,6 +113,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [checkSetupStatus]);
 
   useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        setStoredToken(urlToken);
+        params.delete('token');
+        params.delete('role');
+        const remaining = params.toString();
+        const newUrl = `${window.location.pathname}${remaining ? `?${remaining}` : ''}`;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch {}
     refreshAuth();
   }, [refreshAuth]);
 

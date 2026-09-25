@@ -11,6 +11,9 @@ import { AppError } from '../../middleware/errorHandler';
 import { logger } from '../../utils/logger';
 import { AuditLog } from '../../models/AuditLog';
 import { captchaService } from './captchaService';
+import { generateSecureToken } from '../../utils/crypto';
+import { env } from '../../config/env';
+import { getGoogleRedirectUri, GOOGLE_AUTH_SCOPES } from '../connections/googleConnectionController';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -1076,4 +1079,49 @@ export async function verifyAndResetPassword(req: Request, res: Response, next: 
     next(error);
   }
 }
+
+/**
+ * Public Google SSO Login URL generator
+ * Generates OAuth consent URL with combined profile and sheets/drive scopes
+ */
+export async function getGoogleLoginUrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '').trim();
+    const redirectUri = getGoogleRedirectUri(req);
+
+    if (!clientId || clientId.startsWith('mock_')) {
+      throw new AppError(
+        'GOOGLE_CLIENT_ID_MISSING',
+        'Google Client ID is not configured in Server Environment. Please configure GOOGLE_CLIENT_ID.',
+        400
+      );
+    }
+
+    const statePayload = {
+      purpose: 'login',
+      redirectUri,
+      nonce: generateSecureToken(16)
+    };
+    const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      clientId
+    )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(
+      GOOGLE_AUTH_SCOPES
+    )}&access_type=offline&prompt=consent&state=${state}`;
+
+    logger.info('AUTH_GOOGLE_URL_REQUESTED', `Generated Google Login URL with redirect: ${redirectUri}`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        authUrl,
+        redirectUri
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 

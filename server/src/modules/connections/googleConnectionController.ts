@@ -5,6 +5,9 @@ import '../../middleware/auth';
 import { DataConnection } from '../../models/DataConnection';
 import { Student } from '../../models/Student';
 import { AuditLog } from '../../models/AuditLog';
+import { User } from '../../models/User';
+import { Institution } from '../../models/Institution';
+import { signAccessToken, signRefreshToken } from '../../middleware/auth';
 import { encrypt, decrypt, generateSecureToken } from '../../utils/crypto';
 import { env, isMockMode } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
@@ -103,7 +106,15 @@ export async function getValidGoogleCredentials(connection: any): Promise<{ acce
   };
 }
 
-function getGoogleRedirectUri(req: Request): string {
+export const GOOGLE_AUTH_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.readonly'
+].join(' ');
+
+export function getGoogleRedirectUri(req: Request): string {
   // If request came from production domain, prioritize https://xync.alphaprime.co.in
   const origin = req.headers.origin || req.headers.referer;
   if (origin && origin.includes('xync.alphaprime.co.in')) {
@@ -133,7 +144,7 @@ function getGoogleRedirectUri(req: Request): string {
   return env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/connections/google/callback';
 }
 
-function getFrontendBaseUrl(req: Request): string {
+export function getFrontendBaseUrl(req: Request): string {
   if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
     return process.env.CLIENT_URL.trim();
   }
@@ -164,6 +175,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFu
     }
 
     const statePayload = {
+      purpose: 'connect_sheets',
       institutionId,
       userId: req.user!.userId,
       redirectUri,
@@ -171,16 +183,10 @@ export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFu
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
 
-    const scopes = [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/userinfo.email'
-    ].join(' ');
-
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
       clientId
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(
-      scopes
+      GOOGLE_AUTH_SCOPES
     )}&access_type=offline&prompt=consent&state=${state}`;
 
     logger.info('GOOGLE_OAUTH_STARTED', `Generated OAuth URL for institution ${institutionId} with redirect: ${redirectUri}`);
@@ -198,33 +204,45 @@ export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFu
 }
 
 /**
- * 2. GET /api/connections/google/callback
- * Handles OAuth callback, exchanges authorization code for tokens, encrypts credentials, and redirects.
+ * 2. GET /api/connections/google/callback and /api/auth/google/callback
+ * Handles OAuth callback, supports both Google SSO and Google Sheets connection.
  */
 export async function handleGoogleOAuthCallback(req: Request, res: Response, next: NextFunction) {
   try {
     const { code, state, error } = req.query;
-
     const frontendBaseUrl = getFrontendBaseUrl(req);
+
+    // Decode state
+    let stateData: any = {};
+    if (state) {
+      try {
+        stateData = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf8'));
+      } catch {
+        stateData = {};
+      }
+    }
+
+    const isLoginPurpose = stateData.purpose === 'login';
 
     if (error) {
       logger.warn('GOOGLE_OAUTH_DENIED', `Google OAuth returned error: ${error}`);
+      if (isLoginPurpose) {
+        return res.redirect(`${frontendBaseUrl}/login?error=${encodeURIComponent(String(error))}`);
+      }
       return res.redirect(`${frontendBaseUrl}/sync?error=${encodeURIComponent(String(error))}`);
     }
 
     if (!code || !state) {
+      if (isLoginPurpose) {
+        return res.redirect(`${frontendBaseUrl}/login?error=missing_code_or_state`);
+      }
       return res.redirect(`${frontendBaseUrl}/sync?error=missing_code_or_state`);
     }
 
-    // Decode state
-    let stateData: any;
-    try {
-      stateData = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf8'));
-    } catch {
-      return res.redirect(`${frontendBaseUrl}/sync?error=invalid_state`);
+    if (!isLoginPurpose && !stateData.institutionId) {
+      return res.redirect(`${frontendBaseUrl}/login?error=invalid_state`);
     }
 
-    const institutionId = new Types.ObjectId(stateData.institutionId);
     const callbackRedirectUri = stateData.redirectUri || getGoogleRedirectUri(req);
     const clientId = (process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '').trim();
     const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || '').trim();
@@ -246,11 +264,13 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
 
     if (!tokenData.access_token) {
       logger.error('GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED', JSON.stringify(tokenData));
-      return res.redirect(`${frontendBaseUrl}/sync?error=${encodeURIComponent(tokenData.error_description || 'Token exchange failed')}`);
+      const target = isLoginPurpose ? 'login' : 'sync';
+      return res.redirect(`${frontendBaseUrl}/${target}?error=${encodeURIComponent(tokenData.error_description || 'Token exchange failed')}`);
     }
 
-    // Fetch user email from Google UserInfo
-    let email = 'Google Workspace User';
+    // Fetch user email & profile from Google UserInfo
+    let email = '';
+    let name = '';
     try {
       const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -258,14 +278,187 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
       const userData: any = await userRes.json();
       if (userData.email) {
         email = userData.email;
+        name = userData.name || userData.given_name || '';
       }
-    } catch {}
+    } catch (userInfoErr: any) {
+      logger.warn('GOOGLE_USERINFO_FETCH_FAILED', userInfoErr.message);
+    }
 
+    // Fallback: decode id_token if email not found
+    if (!email && tokenData.id_token) {
+      try {
+        const parts = tokenData.id_token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+          if (payload.email) {
+            email = payload.email;
+            name = name || payload.name || '';
+          }
+        }
+      } catch {}
+    }
+
+    // -------------------------------------------------------------
+    // FLOW A: GOOGLE SIGN-IN (SSO) WITH STRICT ADMIN WHITELIST RBAC
+    // -------------------------------------------------------------
+    if (isLoginPurpose) {
+      if (!email) {
+        return res.redirect(`${frontendBaseUrl}/login?error=NO_EMAIL_PROVIDED`);
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      const user = await User.findOne({ email: normalizedEmail });
+
+      // STRICT ADMIN WHITELIST ENFORCEMENT:
+      // If user has NOT been added by Admin in Settings -> Staff Management, reject!
+      if (!user) {
+        logger.warn('GOOGLE_LOGIN_UNAUTHORIZED', `Unregistered Google user attempted login: ${normalizedEmail}`);
+        return res.redirect(
+          `${frontendBaseUrl}/login?error=ACCESS_DENIED_UNREGISTERED&email=${encodeURIComponent(normalizedEmail)}`
+        );
+      }
+
+      // Check account status
+      if (user.isActive === false) {
+        return res.redirect(
+          `${frontendBaseUrl}/login?error=ACCOUNT_DEACTIVATED&email=${encodeURIComponent(normalizedEmail)}`
+        );
+      }
+
+      if (typeof user.isLocked === 'function' && user.isLocked()) {
+        return res.redirect(
+          `${frontendBaseUrl}/login?error=ACCOUNT_LOCKED&email=${encodeURIComponent(normalizedEmail)}`
+        );
+      }
+
+      // Check shift schedule
+      const accessCheck = typeof user.isAccessAllowedNow === 'function'
+        ? user.isAccessAllowedNow()
+        : { allowed: true };
+      if (!accessCheck.allowed) {
+        return res.redirect(
+          `${frontendBaseUrl}/login?error=ACCESS_RESTRICTED&message=${encodeURIComponent(accessCheck.reason || 'Restricted shift hours')}`
+        );
+      }
+
+      // Update user login timestamp and reset failed attempts
+      user.failedLoginAttempts = 0;
+      user.lockoutUntil = null;
+      user.lastLoginAt = new Date();
+      user.isEmailVerified = true;
+      user.requiresOtpOnFirstLogin = false; // Google SSO satisfies identity verification
+      if (name && (!user.name || user.name === 'Admin User')) {
+        user.name = name;
+      }
+
+      // Auto-heal missing institution
+      let institution = null;
+      if (user.institutionId && Types.ObjectId.isValid(user.institutionId)) {
+        institution = await Institution.findById(user.institutionId);
+      }
+      if (!institution) {
+        institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
+        if (institution) {
+          user.institutionId = institution._id as any;
+        }
+      }
+
+      // Auto-promote if no active admin in DB or role is ADMIN
+      const adminCount = await User.countDocuments({ role: 'ADMIN' });
+      if (adminCount === 0 || !user.role || (user.role as string).toUpperCase() === 'ADMIN') {
+        user.role = 'ADMIN';
+      }
+
+      await user.save();
+
+      // If user is ADMIN, automatically save Google OAuth credentials into DataConnection for Sheets & Drive!
+      if (user.role === 'ADMIN' && user.institutionId && tokenData.access_token) {
+        try {
+          const creds = {
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            expiry: Date.now() + (tokenData.expires_in || 3600) * 1000,
+            email: normalizedEmail,
+            scope: tokenData.scope
+          };
+          const encrypted = encrypt(JSON.stringify(creds));
+
+          let conn = await DataConnection.findOne({ institutionId: user.institutionId, provider: 'google_sheets' });
+          if (!conn) {
+            conn = new DataConnection({
+              institutionId: user.institutionId,
+              provider: 'google_sheets',
+              sheetReference: 'Students_Master',
+              syncInterval: 60
+            });
+          }
+
+          conn.status = 'CONNECTED';
+          conn.accountReference = normalizedEmail;
+          conn.credentialsEncrypted = encrypted;
+          conn.syncStatus = 'Connected via Google SSO. Ready to select or sync spreadsheets.';
+          await conn.save();
+
+          AuditLog.create({
+            institutionId: user.institutionId,
+            actorUserId: user._id,
+            actorRole: 'ADMIN',
+            action: 'GOOGLE_OAUTH_COMPLETED',
+            entityType: 'DATA_CONNECTION',
+            entityId: conn._id.toString(),
+            after: { email: normalizedEmail, provider: 'google_sheets' },
+            reason: 'Google Sheets credentials linked via Admin Google Sign-In'
+          }).catch(() => {});
+
+          logger.info('GOOGLE_CONN_AUTO_LINKED', `Institution ${user.institutionId} automatically linked to ${normalizedEmail}`);
+        } catch (saveConnErr: any) {
+          logger.warn('GOOGLE_CONN_AUTO_SAVE_ERR', saveConnErr.message);
+        }
+      }
+
+      // Generate access token & refresh token
+      const instIdStr = user.institutionId ? user.institutionId.toString() : '';
+      const tokenPayload = {
+        userId: user._id.toString(),
+        institutionId: instIdStr,
+        role: user.role || 'ADMIN',
+        email: user.email
+      };
+
+      const accessToken = signAccessToken(tokenPayload);
+      const isProd = process.env.NODE_ENV === 'production';
+      const cookieOpts = {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+        maxAge: 8 * 60 * 60 * 1000
+      };
+      res.cookie('alphaxync_token', accessToken, cookieOpts);
+      res.cookie('campusflow_token', accessToken, cookieOpts);
+
+      AuditLog.create({
+        institutionId: user.institutionId,
+        actorUserId: user._id,
+        actorRole: user.role || 'ADMIN',
+        action: 'USER_LOGIN',
+        entityType: 'AUTH',
+        entityId: user._id.toString(),
+        after: { email: user.email, role: user.role, name: user.name, provider: 'GOOGLE_SSO' }
+      }).catch(() => {});
+
+      logger.info('AUTH_GOOGLE_LOGIN_SUCCESS', `User ${user.email} logged in with role ${user.role}`);
+      return res.redirect(`${frontendBaseUrl}/?token=${encodeURIComponent(accessToken)}&role=${encodeURIComponent(user.role || 'ADMIN')}`);
+    }
+
+    // -------------------------------------------------------------
+    // FLOW B: MANUAL GOOGLE SHEETS CONNECTION (FROM SYNC/SETTINGS)
+    // -------------------------------------------------------------
+    const institutionId = new Types.ObjectId(stateData.institutionId);
     const creds = {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       expiry: Date.now() + (tokenData.expires_in || 3600) * 1000,
-      email,
+      email: email || 'Google Workspace User',
       scope: tokenData.scope
     };
 
@@ -282,7 +475,7 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
     }
 
     conn.status = 'CONNECTED';
-    conn.accountReference = email;
+    conn.accountReference = email || 'Google Workspace User';
     conn.credentialsEncrypted = encrypted;
     conn.syncStatus = 'Account connected. Please select a spreadsheet.';
     await conn.save();
