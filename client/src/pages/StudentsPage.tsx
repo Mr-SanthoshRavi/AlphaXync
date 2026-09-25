@@ -155,6 +155,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
         notes: paymentNotes || 'Counter collection',
         logoUrl: institution?.logoUrl,
         institutionName: institution?.name,
+        whatsappNumber: selectedStudent.whatsappNumber,
       });
 
       setPaymentAmount('');
@@ -623,6 +624,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
                                 balanceRemaining: 0,
                                 logoUrl: institution?.logoUrl,
                                 institutionName: institution?.name,
+                                whatsappNumber: selectedStudent.whatsappNumber,
                               });
                             }}
                             className="w-full h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-label-sm text-xs font-semibold rounded flex items-center justify-center gap-1.5 transition-colors shadow-sm"
@@ -734,6 +736,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
                                   balanceRemaining: drawerData?.feeSummary?.balance,
                                   logoUrl: institution?.logoUrl,
                                   institutionName: institution?.name,
+                                  whatsappNumber: selectedStudent?.whatsappNumber,
                                 })}
                                 className="px-2 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
                                 title="Print / Download Official Receipt"

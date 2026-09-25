@@ -28,7 +28,7 @@ export async function getPaymentPage(req: Request, res: Response, next: NextFunc
     const { token } = req.params;
 
     const intent = await PaymentIntent.findOne({ paymentToken: token })
-      .populate('studentId', 'name externalStudentId course')
+      .populate('studentId', 'name externalStudentId course department whatsappNumber')
       .populate('feeAccountId', 'feeType totalAmount balance')
       .populate('institutionId', 'name code logoUrl');
 
@@ -59,6 +59,7 @@ export async function getPaymentPage(req: Request, res: Response, next: NextFunc
           registerNo: student?.externalStudentId,
           course: student?.course,
           department: student?.department || student?.rawSourceData?.Course || 'General',
+          whatsappNumber: student?.whatsappNumber,
           institutionName: inst?.name,
           logoUrl: inst?.logoUrl,
           totalFee: fee?.totalAmount,
@@ -88,6 +89,8 @@ export async function getPaymentPage(req: Request, res: Response, next: NextFunc
         studentName: student?.name,
         registerNo: student?.externalStudentId,
         course: student?.course,
+        department: student?.department,
+        whatsappNumber: student?.whatsappNumber,
         feeType: fee?.feeType,
         institutionName: inst?.name,
         logoUrl: inst?.logoUrl,
@@ -188,6 +191,7 @@ export async function verifyPublicPayment(req: Request, res: Response, next: Nex
         registerNo: student?.externalStudentId,
         course: student?.course,
         department: student?.department || student?.rawSourceData?.Course || 'General',
+        whatsappNumber: student?.whatsappNumber,
         balanceRemaining: result.feeAccount?.balance !== undefined ? result.feeAccount.balance : fee?.balance,
         totalFee: fee?.totalAmount,
         institutionName: inst?.name,

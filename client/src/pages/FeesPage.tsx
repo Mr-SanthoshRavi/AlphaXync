@@ -176,6 +176,7 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
             notes: 'Verified live UPI payment (Gateway-Confirmed)',
             logoUrl: institution?.logoUrl,
             institutionName: institution?.name,
+            whatsappNumber: data.whatsappNumber || selectedFee?.whatsappNumber,
           });
 
           setShowOfflineModal(false);
@@ -337,6 +338,7 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
         notes: notes || 'Counter payment',
         logoUrl: institution?.logoUrl,
         institutionName: institution?.name,
+        whatsappNumber: selectedFee.whatsappNumber,
       });
 
       setShowOfflineModal(false);
@@ -698,6 +700,7 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
                               notes: p.note || `Tuition Fee (Total ₹${account.total.toLocaleString('en-IN')})`,
                               logoUrl: institution?.logoUrl,
                               institutionName: institution?.name,
+                              whatsappNumber: account.whatsappNumber,
                             });
                           }}
                           className="h-7 px-2 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/30 text-xs font-medium flex items-center gap-1 transition-all active:scale-95 shrink-0"
@@ -1468,7 +1471,8 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
                           balanceRemaining: viewingLogAccount.balance,
                           notes: `Tuition Fee Installment (${log.method})`,
                           logoUrl: institution?.logoUrl,
-                          institutionName: institution?.name
+                          institutionName: institution?.name,
+                          whatsappNumber: viewingLogAccount.whatsappNumber,
                         });
                       }}
                       className="px-2.5 py-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"

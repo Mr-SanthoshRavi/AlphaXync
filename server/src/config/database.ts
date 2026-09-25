@@ -25,6 +25,22 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     throw new Error('MONGODB_URI environment variable is missing in Vercel Settings (currently pointing to localhost). Please configure your MongoDB Atlas URI in Vercel Settings -> Environment Variables and click Redeploy.');
   }
 
+  // In test mode, always isolate from production/development Atlas cluster to protect user data
+  if (process.env.NODE_ENV === 'test') {
+    try {
+      const { MongoMemoryServer } = await import('mongodb-memory-server');
+      if (!mongoMemoryServerInstance) {
+        mongoMemoryServerInstance = await MongoMemoryServer.create();
+      }
+      const memoryUri = mongoMemoryServerInstance.getUri();
+      const conn = await mongoose.connect(memoryUri);
+      logger.info('DATABASE_MEMORY_SERVER_TEST', `Connected to isolated test database at ${memoryUri}`);
+      return conn;
+    } catch (memErr: any) {
+      logger.warn('DATABASE_MEMORY_SERVER_TEST_WARN', `Could not start isolated memory server: ${memErr.message}`);
+    }
+  }
+
   // Attempt direct connection first
   try {
     const conn = await mongoose.connect(resolvedUri, {

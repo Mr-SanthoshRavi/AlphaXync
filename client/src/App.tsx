@@ -143,7 +143,7 @@ const AppShell: React.FC = () => {
 
   // Public Pay route does not require authentication
   if (isPayRoute && payToken) {
-    return <PublicPayPage token={payToken} onBackToApp={() => (window.location.href = '/')} />;
+    return <PublicPayPage token={payToken} />;
   }
 
   // Loading Splash Screen
