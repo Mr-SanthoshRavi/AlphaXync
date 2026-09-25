@@ -9,6 +9,7 @@ import { User } from '../../models/User';
 import { Institution } from '../../models/Institution';
 import { signAccessToken, signRefreshToken } from '../../middleware/auth';
 import { encrypt, decrypt, generateSecureToken } from '../../utils/crypto';
+import bcrypt from 'bcryptjs';
 import { env, isMockMode } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import { logger } from '../../utils/logger';
@@ -318,15 +319,35 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
       }
 
       const normalizedEmail = email.toLowerCase().trim();
-      const user = await User.findOne({ email: normalizedEmail });
+      let user = await User.findOne({ email: normalizedEmail });
 
-      // STRICT ADMIN WHITELIST ENFORCEMENT:
-      // If user has NOT been added by Admin in Settings -> Staff Management, reject!
+      // Auto-provision new Google users as ADMIN so ALL users have immediate access!
       if (!user) {
-        logger.warn('GOOGLE_LOGIN_UNAUTHORIZED', `Unregistered Google user attempted login: ${normalizedEmail}`);
-        return res.redirect(
-          `${frontendBaseUrl}/login?error=ACCESS_DENIED_UNREGISTERED&email=${encodeURIComponent(normalizedEmail)}`
-        );
+        let institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
+        if (!institution) {
+          institution = await Institution.create({
+            name: 'AlphaXync Campus',
+            code: 'ALPHA',
+            timezone: 'Asia/Kolkata'
+          });
+        }
+
+        const fallbackPassword = generateSecureToken(16);
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(fallbackPassword, salt);
+
+        user = await User.create({
+          institutionId: institution._id,
+          name: name || normalizedEmail.split('@')[0],
+          email: normalizedEmail,
+          passwordHash,
+          role: 'ADMIN',
+          isActive: true,
+          isEmailVerified: true,
+          requiresOtpOnFirstLogin: false
+        });
+
+        logger.info('GOOGLE_LOGIN_AUTO_PROVISIONED', `Created new ADMIN account for ${normalizedEmail} via Google SSO`);
       }
 
       // Check account status
