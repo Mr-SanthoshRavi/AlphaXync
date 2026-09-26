@@ -85,6 +85,38 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return json?.data as T;
 }
 
+export async function downloadFile(endpoint: string, defaultFilename: string) {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const res = await fetch(url, { headers, credentials: 'include' });
+  if (!res.ok) {
+    let errMessage = 'Failed to download file';
+    try {
+      const err = await res.json();
+      if (err?.error?.message) errMessage = err.error.message;
+      else if (err?.message) errMessage = err.message;
+    } catch {}
+    throw new Error(errMessage);
+  }
+  const blob = await res.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  const disposition = res.headers.get('Content-Disposition');
+  let filename = defaultFilename;
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export const api = {
   // Auth & OTP Verification
   getSetupStatus: () => request<{ setupRequired: boolean }>('/auth/setup-status'),
@@ -218,7 +250,7 @@ export const api = {
   getDashboardSummary: (academicYear?: string) =>
     request<any>(`/dashboard/summary${academicYear ? `?academicYear=${academicYear}` : ''}`),
 
-  // Students
+  // Students & Native AlphaSheet
   getStudents: (params: {
     search?: string;
     course?: string;
@@ -226,6 +258,8 @@ export const api = {
     section?: string;
     paymentStatus?: string;
     whatsappStatus?: string;
+    status?: string;
+    sourceProvider?: string;
     page?: number;
     limit?: number;
   }) => {
@@ -236,13 +270,130 @@ export const api = {
     if (params.section) query.set('section', params.section);
     if (params.paymentStatus) query.set('paymentStatus', params.paymentStatus);
     if (params.whatsappStatus) query.set('whatsappStatus', params.whatsappStatus);
+    if (params.status) query.set('status', params.status);
+    if (params.sourceProvider) query.set('sourceProvider', params.sourceProvider);
     if (params.page) query.set('page', params.page.toString());
     if (params.limit) query.set('limit', params.limit.toString());
-    return request<{ students: any[]; pagination: { total: number; page: number; limit: number; pages: number } }>(
-      `/students?${query.toString()}`
-    );
+    return request<{
+      students: any[];
+      pagination: { total: number; page: number; limit: number; pages: number };
+      isSourceActive?: boolean;
+      connectionStatus?: string;
+    }>(`/students?${query.toString()}`);
   },
   getStudentDetail: (id: string) => request<any>(`/students/${id}`),
+  createStudent: (data: {
+    externalStudentId: string;
+    name: string;
+    fatherName?: string;
+    motherName?: string;
+    whatsappNumber?: string;
+    course?: string;
+    department?: string;
+    year?: string;
+    section?: string;
+    academicYear?: string;
+    totalFee?: number;
+    paidAmount?: number;
+    dueDate?: string;
+    fineAmount?: number;
+  }) => request<{ student: any }>('/students', { method: 'POST', body: JSON.stringify(data) }),
+  updateStudent: (
+    id: string,
+    data: {
+      name?: string;
+      fatherName?: string;
+      motherName?: string;
+      whatsappNumber?: string;
+      course?: string;
+      department?: string;
+      year?: string;
+      section?: string;
+      status?: string;
+      totalFee?: number;
+      dueDate?: string;
+      fineAmount?: number;
+    }
+  ) => request<{ student: any }>(`/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteStudent: (id: string, permanent = false) =>
+    request<{ success: boolean; message: string }>(`/students/${id}${permanent ? '?permanent=true' : ''}`, {
+      method: 'DELETE'
+    }),
+  batchSaveStudents: (updates: Array<{
+    id: string;
+    name?: string;
+    fatherName?: string;
+    whatsappNumber?: string;
+    course?: string;
+    department?: string;
+    year?: string;
+    section?: string;
+    totalFee?: number;
+    dueDate?: string;
+  }>) => request<{ success: boolean; message: string; updatedCount: number }>('/students/batch-save', {
+    method: 'POST',
+    body: JSON.stringify({ updates })
+  }),
+  parseImportFile: (fileBase64: string) =>
+    request<{
+      success: boolean;
+      sheetNames: string[];
+      selectedSheet: string;
+      headers: string[];
+      totalRows: number;
+      previewRows: any[];
+      detectedMapping: Record<string, string>;
+      allRows: any[];
+    }>('/students/parse-file', {
+      method: 'POST',
+      body: JSON.stringify({ fileBase64 })
+    }),
+  bulkImportStudents: (data: {
+    rows: any[];
+    academicYear?: string;
+    updateExisting?: boolean;
+    columnMapping?: Record<string, string>;
+    defaultFee?: number;
+    defaultDueDate?: string;
+  }) => request<{
+    success: boolean;
+    message: string;
+    data: {
+      totalRows: number;
+      added: number;
+      updated: number;
+      skipped: number;
+      errors: Array<{ row: number; error: string }>;
+    };
+  }>('/students/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  exportStudents: async (params: {
+    format?: 'xlsx' | 'csv';
+    sourceProvider?: string;
+    search?: string;
+    course?: string;
+    year?: string;
+    section?: string;
+    paymentStatus?: string;
+    status?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params.format) query.set('format', params.format);
+    if (params.sourceProvider) query.set('sourceProvider', params.sourceProvider);
+    if (params.search) query.set('search', params.search);
+    if (params.course) query.set('course', params.course);
+    if (params.year) query.set('year', params.year);
+    if (params.section) query.set('section', params.section);
+    if (params.paymentStatus) query.set('paymentStatus', params.paymentStatus);
+    if (params.status) query.set('status', params.status);
+    await downloadFile(`/students/export?${query.toString()}`, `AlphaSheet_Students.${params.format || 'xlsx'}`);
+  },
+  downloadImportTemplate: async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    await downloadFile(`/students/template?format=${format}`, `AlphaSheet_Template.${format}`);
+  },
+
 
   // Fees & Payments
   getFees: (params?: { search?: string; status?: string; page?: number; limit?: number }) => {

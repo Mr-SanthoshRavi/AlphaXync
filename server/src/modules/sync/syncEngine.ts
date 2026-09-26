@@ -162,6 +162,12 @@ export async function runSync(connectionId: string, customAdapter?: DataSourceAd
         externalStudentId
       });
 
+      // SOURCE ISOLATION GUARD: Never overwrite student records managed natively in AlphaSheet
+      if (student && student.sourceProvider && student.sourceProvider !== connection.provider) {
+        logger.info('SYNC_SKIPPING_NATIVE_STUDENT', `Preserving native sheet record for ${externalStudentId}`);
+        continue;
+      }
+
       if (!student) {
         // --- NEW STUDENT ---
         student = await Student.create({
@@ -326,8 +332,10 @@ export async function runSync(connectionId: string, customAdapter?: DataSourceAd
     }
 
     // Identify disappeared students (Rule 41: SOURCE_MISSING, never hard-delete)
+    // SOURCE ISOLATION GUARD: Only mark missing if the student originated from this specific external connection provider!
     const activeStudents = await Student.find({
       institutionId,
+      sourceProvider: connection.provider,
       status: 'ACTIVE'
     });
 

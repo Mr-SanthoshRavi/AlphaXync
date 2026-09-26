@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { ReceiptModal, type ReceiptData } from '../components/ReceiptModal';
 import { useAuth } from '../contexts/AuthContext';
+import { AlphaSheetStudio } from '../components/sheet/AlphaSheetStudio';
 
 interface StudentsPageProps {
   onOpenPaymentModal?: (student: any) => void;
@@ -25,6 +26,20 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
   const [drawerData, setDrawerData] = useState<any | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [activeDrawerTab, setActiveDrawerTab] = useState<'profile' | 'fees' | 'payments' | 'messages'>('profile');
+  const [viewMode, setViewMode] = useState<'directory' | 'alphasheet'>(() => {
+    try {
+      return (localStorage.getItem('campusflow_students_view') as any) || 'alphasheet';
+    } catch {
+      return 'alphasheet';
+    }
+  });
+
+  const handleViewModeChange = (mode: 'directory' | 'alphasheet') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('campusflow_students_view', mode);
+    } catch {}
+  };
 
   // Fast offline payment inside drawer
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -253,7 +268,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
     <div className="flex flex-col w-full pb-10">
       {/* Title & Toolbar */}
       <div className="flex items-center justify-between py-space-sm mb-space-md flex-wrap gap-3">
-        <div className="flex items-center gap-space-xs">
+        <div className="flex items-center gap-space-xs flex-wrap">
           <span className="material-symbols-outlined text-primary text-[24px]">school</span>
           <h1 className="font-headline-md text-headline-md text-on-surface tracking-tight">Master Student Directory</h1>
           {cashierMode && (
@@ -261,63 +276,98 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
               CASHIER DESK
             </span>
           )}
-          <span className="font-data-mono text-[12px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant ml-2">
-            {pagination.total} Records
-          </span>
-        </div>
 
-        {/* Filter Controls */}
-        <div className="flex items-center gap-space-xs flex-wrap">
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-outline text-[16px]">search</span>
-            <input
-              type="text"
-              placeholder="Search name, register no, phone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 pr-3 bg-surface-container-lowest border border-outline-variant/30 rounded text-body-sm text-on-surface focus:outline-none focus:border-primary w-60"
-            />
+          {/* View Mode Switcher Pill */}
+          <div className="flex items-center bg-surface-container p-0.5 rounded-lg border border-outline-variant/30 ml-2">
+            <button
+              onClick={() => handleViewModeChange('alphasheet')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-label-sm font-semibold transition-all ${
+                viewMode === 'alphasheet'
+                  ? 'bg-primary text-on-primary shadow-xs'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">grid_on</span>
+              <span>AlphaSheet Studio</span>
+              <span className="font-data-mono text-[9px] px-1 py-0.2 rounded bg-white/20 ml-0.5">NATIVE</span>
+            </button>
+            <button
+              onClick={() => handleViewModeChange('directory')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-label-sm font-medium transition-all ${
+                viewMode === 'directory'
+                  ? 'bg-surface-container-lowest text-primary shadow-xs font-semibold'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">view_list</span>
+              <span>Directory Table</span>
+            </button>
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 px-2 bg-surface-container-lowest border border-outline-variant/30 rounded text-label-sm text-on-surface focus:outline-none focus:border-primary"
-          >
-            <option value="">All Payment Statuses</option>
-            <option value="PAID">Paid</option>
-            <option value="PARTIAL">Partial</option>
-            <option value="PENDING">Pending</option>
-            <option value="OVERDUE">Overdue</option>
-          </select>
-
-          <select
-            value={whatsappFilter}
-            onChange={(e) => setWhatsappFilter(e.target.value)}
-            className="h-8 px-2 bg-surface-container-lowest border border-outline-variant/30 rounded text-label-sm text-on-surface focus:outline-none focus:border-primary"
-          >
-            <option value="">All Phone Statuses</option>
-            <option value="valid">Valid WhatsApp</option>
-            <option value="invalid">Missing / Invalid</option>
-          </select>
-
-          <button
-            onClick={handleManualRefresh}
-            disabled={syncing || loading}
-            className="h-8 px-space-sm bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface rounded font-label-sm text-label-sm flex items-center gap-1.5 transition-all disabled:opacity-60"
-            title="Pull latest live changes directly from Google Sheets"
-          >
-            <span className={`material-symbols-outlined text-[16px] ${syncing ? 'animate-spin text-primary' : ''}`}>
-              {syncing ? 'sync' : 'refresh'}
+          {viewMode === 'directory' && (
+            <span className="font-data-mono text-[12px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant ml-2">
+              {pagination.total} Records
             </span>
-            <span>{syncing ? 'Syncing Sheet...' : 'Sync & Refresh'}</span>
-          </button>
+          )}
         </div>
+
+        {/* Filter Controls (Shown in Directory Table Mode) */}
+        {viewMode === 'directory' && (
+          <div className="flex items-center gap-space-xs flex-wrap">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-2.5 top-2 text-outline text-[16px]">search</span>
+              <input
+                type="text"
+                placeholder="Search name, register no, phone..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 pl-8 pr-3 bg-surface-container-lowest border border-outline-variant/30 rounded text-body-sm text-on-surface focus:outline-none focus:border-primary w-60"
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-8 px-2 bg-surface-container-lowest border border-outline-variant/30 rounded text-label-sm text-on-surface focus:outline-none focus:border-primary"
+            >
+              <option value="">All Payment Statuses</option>
+              <option value="PAID">Paid</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="PENDING">Pending</option>
+              <option value="OVERDUE">Overdue</option>
+            </select>
+
+            <select
+              value={whatsappFilter}
+              onChange={(e) => setWhatsappFilter(e.target.value)}
+              className="h-8 px-2 bg-surface-container-lowest border border-outline-variant/30 rounded text-label-sm text-on-surface focus:outline-none focus:border-primary"
+            >
+              <option value="">All Phone Statuses</option>
+              <option value="valid">Valid WhatsApp</option>
+              <option value="invalid">Missing / Invalid</option>
+            </select>
+
+            <button
+              onClick={handleManualRefresh}
+              disabled={syncing || loading}
+              className="h-8 px-space-sm bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface rounded font-label-sm text-label-sm flex items-center gap-1.5 transition-all disabled:opacity-60"
+              title="Pull latest live changes directly from Google Sheets"
+            >
+              <span className={`material-symbols-outlined text-[16px] ${syncing ? 'animate-spin text-primary' : ''}`}>
+                {syncing ? 'sync' : 'refresh'}
+              </span>
+              <span>{syncing ? 'Syncing Sheet...' : 'Sync & Refresh'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Main Table */}
-      <div className="bg-surface-container-lowest rounded shadow-sm border border-outline-variant/20 overflow-hidden">
-        <table className="w-full text-left border-collapse">
+      {/* Main Content View Switch */}
+      {viewMode === 'alphasheet' ? (
+        <AlphaSheetStudio onOpenStudentDrawer={handleSelectStudent} />
+      ) : (
+        <div className="bg-surface-container-lowest rounded shadow-sm border border-outline-variant/20 overflow-hidden">
+          <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant/25 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
               <th className="py-2.5 px-4 w-10 text-center">State</th>
@@ -447,6 +497,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
           </div>
         )}
       </div>
+      )}
 
       {/* 480px Slide-out Right Drawer */}
       {selectedStudent && (
