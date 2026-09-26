@@ -101,7 +101,11 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
     if (year) filter.year = String(year);
     if (section) filter.section = String(section);
 
-    if (sourceProvider && sourceProvider !== 'all') {
+    if (sourceProvider === 'native_sheet') {
+      filter.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+    } else if (sourceProvider === 'google_sheets') {
+      filter.sourceProvider = 'google_sheets';
+    } else if (sourceProvider && sourceProvider !== 'all') {
       filter.sourceProvider = String(sourceProvider);
     }
 
@@ -126,13 +130,7 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
         (connection.fileReference || connection.sheetReference)
       );
 
-    // Count non-google students (native_sheet, excel_import)
-    const nativeStudentCount = await Student.countDocuments({
-      institutionId,
-      sourceProvider: { $ne: 'google_sheets' }
-    });
-
-    // If source provider requested is explicitly google_sheets and it's disconnected
+    // If querying specifically for google_sheets and it's disconnected
     if (sourceProvider === 'google_sheets' && !isGoogleActive && (!status || status === 'ACTIVE')) {
       return res.status(200).json({
         success: true,
@@ -145,7 +143,13 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
             pages: 0
           },
           isSourceActive: false,
-          connectionStatus: connection?.status || 'DISCONNECTED'
+          connectionStatus: connection?.status || 'DISCONNECTED',
+          googleConnection: connection ? {
+            status: connection.status,
+            accountReference: connection.accountReference,
+            sheetReference: connection.sheetReference,
+            lastSyncAt: connection.lastSyncAt
+          } : null
         }
       });
     }
@@ -153,7 +157,11 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
     // If no specific sourceProvider is chosen (or 'all') and Google Sheets is disconnected:
     // Retain and show native & excel records without returning an empty roster!
     if ((!sourceProvider || sourceProvider === 'all') && !isGoogleActive && (!status || status === 'ACTIVE')) {
-      if (nativeStudentCount === 0) {
+      const nativeExists = await Student.exists({
+        institutionId,
+        sourceProvider: { $in: ['native_sheet', 'excel_import', 'manual'] }
+      });
+      if (!nativeExists) {
         return res.status(200).json({
           success: true,
           data: {
@@ -235,6 +243,11 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
       ? combined.filter((s) => s.fee.status.toUpperCase() === String(paymentStatus).toUpperCase())
       : combined;
 
+    const [nativeCount, googleCount] = await Promise.all([
+      Student.countDocuments({ institutionId, sourceProvider: { $in: ['native_sheet', 'excel_import', 'manual'] } }),
+      Student.countDocuments({ institutionId, sourceProvider: 'google_sheets' })
+    ]);
+
     return res.status(200).json({
       success: true,
       data: {
@@ -245,8 +258,18 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
           limit: limitNum,
           pages: Math.ceil(total / limitNum)
         },
-        isSourceActive: isGoogleActive || nativeStudentCount > 0,
-        connectionStatus: isGoogleActive ? 'CONNECTED' : nativeStudentCount > 0 ? 'NATIVE_ACTIVE' : connection?.status || 'DISCONNECTED'
+        counts: {
+          native: nativeCount,
+          google: googleCount
+        },
+        isSourceActive: isGoogleActive,
+        connectionStatus: isGoogleActive ? 'CONNECTED' : connection?.status || 'DISCONNECTED',
+        googleConnection: connection ? {
+          status: connection.status,
+          accountReference: connection.accountReference,
+          sheetReference: connection.sheetReference,
+          lastSyncAt: connection.lastSyncAt
+        } : null
       }
     });
   } catch (error) {

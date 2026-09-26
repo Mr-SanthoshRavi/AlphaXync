@@ -17,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentTitle,
   cashierMode,
   onToggleCashierMode,
-  lastSyncedText = 'Synced 2m ago',
+  lastSyncedText,
   searchQuery,
   onSearchChange,
   mockMode = false,
@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
         sidebarCollapsed ? 'left-[72px]' : 'left-64'
       }`}
     >
-      {/* Left Breadcrumbs & Synced status */}
+      {/* Left Breadcrumbs */}
       <div className="flex items-center gap-space-md">
         {onToggleSidebar && (
           <button
@@ -50,15 +50,16 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-on-surface-variant font-medium">Institution</span>
           <span className="material-symbols-outlined text-outline text-[14px]">chevron_right</span>
           <span className="text-on-surface font-bold">{currentTitle}</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-primary/10 border border-primary/25 text-primary font-data-mono text-[9px] font-bold uppercase tracking-wider ml-1">
-            Beta
-          </span>
         </div>
-        <div className="h-4 w-[1px] bg-outline-variant/40 mx-space-xs"></div>
-        <div className="flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-surface-container border border-outline-variant/30 text-on-surface-variant font-label-sm text-label-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0"></span>
-          <span>{lastSyncedText}</span>
-        </div>
+        {lastSyncedText && (
+          <>
+            <div className="h-4 w-[1px] bg-outline-variant/40 mx-space-xs"></div>
+            <div className="flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-surface-container border border-outline-variant/30 text-on-surface-variant font-label-sm text-label-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0"></span>
+              <span>{lastSyncedText}</span>
+            </div>
+          </>
+        )}
         {mockMode && (
           <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-400 font-data-mono text-[11px] font-bold tracking-wide animate-pulse">
             <span className="material-symbols-outlined text-[14px]">warning</span>

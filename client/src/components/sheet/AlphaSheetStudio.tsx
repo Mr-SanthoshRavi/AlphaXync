@@ -3,7 +3,6 @@ import { api } from '../../lib/api';
 
 export interface AlphaSheetStudioProps {
   onOpenStudentDrawer?: (student: any) => void;
-  onOpenPaymentModal?: (student: any) => void;
   cashierMode?: boolean;
 }
 
@@ -65,16 +64,56 @@ const DEFAULT_PRESETS: PresetSettings = {
 export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   onOpenStudentDrawer
 }) => {
+  // Mode: STRICTLY isolated between Native Sheet and Google Sheets
+  const [activeMode, setActiveMode] = useState<'native' | 'google'>(() => {
+    try {
+      return (localStorage.getItem('alphasheet_active_mode') as any) || 'native';
+    } catch {
+      return 'native';
+    }
+  });
+
+  const handleModeSwitch = (mode: 'native' | 'google') => {
+    setActiveMode(mode);
+    setSelectedIds(new Set());
+    try {
+      localStorage.setItem('alphasheet_active_mode', mode);
+    } catch {}
+  };
+
+  // Customizable Native Sheet Name
+  const [sheetName, setSheetName] = useState(() => {
+    try {
+      return localStorage.getItem('alphasheet_custom_name') || 'Student Roster 2026';
+    } catch {
+      return 'Student Roster 2026';
+    }
+  });
+  const [isEditingSheetName, setIsEditingSheetName] = useState(false);
+  const [tempSheetName, setTempSheetName] = useState(sheetName);
+
+  const handleSaveSheetName = () => {
+    const trimmed = tempSheetName.trim() || 'Student Roster 2026';
+    setSheetName(trimmed);
+    setIsEditingSheetName(false);
+    try {
+      localStorage.setItem('alphasheet_custom_name', trimmed);
+    } catch {}
+  };
+
   // Master data & State
   const [rows, setRows] = useState<SheetRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
+  const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [googleMeta, setGoogleMeta] = useState<any>(null);
+
+  // Tab counts
+  const [counts, setCounts] = useState({ native: 0, google: 0 });
 
   // Filters
   const [search, setSearch] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'native_sheet' | 'google_sheets' | 'excel_import'>('all');
-  const [columnView, setColumnView] = useState<'master' | 'academic' | 'finance' | 'contact'>('master');
   const [paymentFilter, setPaymentFilter] = useState('');
 
   // Row selection
@@ -87,7 +126,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Presets loaded from localStorage
+  // Presets
   const [presets, setPresets] = useState<PresetSettings>(() => {
     try {
       const saved = localStorage.getItem('alphasheet_presets');
@@ -107,18 +146,28 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   const pendingUpdatesRef = useRef<Map<string, any>>(new Map());
   const debounceTimerRef = useRef<any>(null);
 
-  // Load students from backend
+  // Load students strictly filtered by activeMode
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Strict isolation: native requests only native records; google requests only google records
+      const targetProvider = activeMode === 'native' ? 'native_sheet' : 'google_sheets';
       const res = await api.getStudents({
         search: search.trim() || undefined,
         paymentStatus: paymentFilter || undefined,
-        sourceProvider: sourceFilter !== 'all' ? sourceFilter : undefined,
-        limit: 200,
+        sourceProvider: targetProvider,
+        limit: 250,
         page: 1
       });
+
+      if ((res as any).counts) {
+        setCounts((res as any).counts);
+      }
+      if ((res as any).googleConnection) {
+        setGoogleMeta((res as any).googleConnection);
+      }
 
       const formatted: SheetRow[] = (res.students || []).map((s: any) => ({
         id: s.id,
@@ -133,7 +182,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         section: s.section || 'A',
         status: s.status || 'ACTIVE',
         validationStatus: s.validationStatus || 'VALID',
-        sourceProvider: s.sourceProvider || 'native_sheet',
+        sourceProvider: s.sourceProvider || targetProvider,
         sourceSheetId: s.sourceSheetId || 'AlphaSheet',
         fee: {
           id: s.fee?.id || null,
@@ -150,8 +199,8 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
       setRows(formatted);
       setSyncStatus('saved');
     } catch (err: any) {
-      console.error('Failed to load AlphaSheet data:', err);
-      setError(err.message || 'Failed to connect to AlphaSheet backend');
+      console.error('Failed to load sheet data:', err);
+      setError(err.message || 'Failed to connect to ledger');
     } finally {
       setLoading(false);
     }
@@ -159,10 +208,11 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
 
   useEffect(() => {
     loadData();
-  }, [search, sourceFilter, paymentFilter]);
+  }, [activeMode, search, paymentFilter]);
 
-  // Debounced cloud save
+  // Debounced cloud save (only active in native mode)
   const triggerDebouncedSave = () => {
+    if (activeMode !== 'native') return;
     setSyncStatus('saving');
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
@@ -178,7 +228,6 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
       try {
         await api.batchSaveStudents(updates);
         setSyncStatus('saved');
-        // Clear modified flags on rows
         setRows((prev) =>
           prev.map((r) => (updates.some((u) => u.id === r.id) ? { ...r, isModified: false } : r))
         );
@@ -191,6 +240,8 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
 
   // Modify cell value
   const handleCellChange = (id: string, field: string, value: any) => {
+    if (activeMode !== 'native') return; // Read-protected in Google Sheets live mirror mode
+
     setRows((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
@@ -233,8 +284,10 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
     triggerDebouncedSave();
   };
 
-  // Add New Row
+  // Add New Row (Native Mode only)
   const handleAddNewRow = async () => {
+    if (activeMode !== 'native') return;
+
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const defaultRoll = `REG-${new Date().getFullYear().toString().slice(-2)}${randomSuffix}`;
     const dueDate = new Date();
@@ -269,8 +322,8 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         section: s.section || 'A',
         status: s.status || 'ACTIVE',
         validationStatus: s.validationStatus || 'VALID',
-        sourceProvider: s.sourceProvider || 'native_sheet',
-        sourceSheetId: 'AlphaSheet_Studio',
+        sourceProvider: 'native_sheet',
+        sourceSheetId: sheetName,
         fee: {
           id: s.fee?.id || null,
           feeAccountId: s.fee?.feeAccountId || null,
@@ -284,6 +337,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
       };
 
       setRows((prev) => [newRow, ...prev]);
+      setCounts((prev) => ({ ...prev, native: prev.native + 1 }));
       setSyncStatus('saved');
     } catch (err: any) {
       console.error('Failed to create student row:', err);
@@ -294,7 +348,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
 
   // Delete Row
   const handleDeleteRow = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete student "${name}"? This removes the student and their ledger record.`)) {
+    if (!confirm(`Are you sure you want to delete student "${name}"?`)) {
       return;
     }
 
@@ -306,39 +360,37 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         next.delete(id);
         return next;
       });
+      if (activeMode === 'native') {
+        setCounts((prev) => ({ ...prev, native: Math.max(0, prev.native - 1) }));
+      } else {
+        setCounts((prev) => ({ ...prev, google: Math.max(0, prev.google - 1) }));
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to delete student');
     }
   };
 
-  // Batch Delete Selected
-  const handleBatchDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Are you sure you want to permanently delete ${selectedIds.size} selected student record(s)?`)) {
-      return;
-    }
-
-    setSyncStatus('saving');
-    const ids = Array.from(selectedIds);
+  // Google Sheets Manual Sync
+  const handleTriggerGoogleSync = async () => {
     try {
-      await Promise.all(ids.map((id) => api.deleteStudent(id, true)));
-      setRows((prev) => prev.filter((r) => !selectedIds.has(r.id)));
-      setSelectedIds(new Set());
-      setSyncStatus('saved');
+      setGoogleSyncing(true);
+      await api.triggerSync().catch(() => {});
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete selected rows');
-      setSyncStatus('error');
+      console.error('Google sync trigger error:', err);
+    } finally {
+      setGoogleSyncing(false);
     }
   };
 
-  // Export handlers
+  // Export handler
   const handleExport = async (format: 'xlsx' | 'csv') => {
     setShowExportMenu(false);
     setExportLoading(true);
     try {
       await api.exportStudents({
         format,
-        sourceProvider: sourceFilter !== 'all' ? sourceFilter : undefined,
+        sourceProvider: activeMode === 'native' ? 'native_sheet' : 'google_sheets',
         search: search.trim() || undefined,
         paymentStatus: paymentFilter || undefined
       });
@@ -349,7 +401,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
     }
   };
 
-  // Row selection helpers
+  // Selection helpers
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       setSelectedIds(new Set(rows.map((r) => r.id)));
@@ -367,221 +419,229 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
     });
   };
 
-  // Summary statistics
+  // Stats calculation
   const stats = useMemo(() => {
     const total = rows.length;
     const totalFees = rows.reduce((acc, r) => acc + (r.fee?.total || 0), 0);
     const totalCollected = rows.reduce((acc, r) => acc + (r.fee?.paid || 0), 0);
     const totalBalance = rows.reduce((acc, r) => acc + (r.fee?.balance || 0), 0);
-    const nativeCount = rows.filter((r) => r.sourceProvider === 'native_sheet').length;
-    const googleCount = rows.filter((r) => r.sourceProvider === 'google_sheets').length;
-    return { total, totalFees, totalCollected, totalBalance, nativeCount, googleCount };
+    return { total, totalFees, totalCollected, totalBalance };
   }, [rows]);
 
   return (
-    <div className="flex flex-col w-full bg-surface min-h-[calc(100vh-140px)] select-none">
-      {/* Top Banner Toolbar */}
-      <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-t-lg p-3 shadow-sm flex flex-col gap-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          {/* Brand & Engine Badge */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-primary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">grid_on</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-headline-sm text-[17px] font-bold text-on-surface tracking-tight">
-                  AlphaSheet Studio
-                </h2>
-                <span className="font-data-mono text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-semibold border border-primary/20">
-                  NATIVE SPREADSHEET ENGINE
-                </span>
-                {/* Cloud Save Pill */}
-                <div className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium">
-                  {syncStatus === 'saving' && (
-                    <>
-                      <span className="material-symbols-outlined text-[13px] animate-spin text-primary">sync</span>
-                      <span>Saving changes...</span>
-                    </>
-                  )}
-                  {syncStatus === 'saved' && (
-                    <>
-                      <span className="material-symbols-outlined text-[13px] text-secondary">cloud_done</span>
-                      <span className="text-secondary font-semibold">All changes saved</span>
-                    </>
-                  )}
-                  {syncStatus === 'error' && (
-                    <>
-                      <span className="material-symbols-outlined text-[13px] text-error">cloud_off</span>
-                      <span className="text-error font-semibold">Save failed - retry</span>
-                    </>
-                  )}
-                </div>
+    <div className="flex flex-col w-full select-none pb-12">
+      {/* 1. TOP SHEET MODE TABS: STRICT ZERO-MIXING ISOLATION */}
+      <div className="flex items-center gap-1 border-b border-outline-variant/30 px-1 pt-1 bg-surface-container-low/50 rounded-t-xl">
+        {/* Tab 1: Native Sheet (Customizable Name) */}
+        <button
+          onClick={() => handleModeSwitch('native')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 ${
+            activeMode === 'native'
+              ? 'bg-surface-container-lowest text-primary border-primary shadow-xs font-bold'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-primary">table_chart</span>
+          <span>{sheetName} (Native Sheet)</span>
+          <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+            {counts.native}
+          </span>
+        </button>
+
+        {/* Tab 2: Google Sheets (Live Mirror Mode) */}
+        <button
+          onClick={() => handleModeSwitch('google')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 ${
+            activeMode === 'google'
+              ? 'bg-surface-container-lowest text-emerald-700 dark:text-emerald-400 border-emerald-600 shadow-xs font-bold'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-emerald-600">cloud_sync</span>
+          <span>Google Sheets (Live Mirror)</span>
+          <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold">
+            {counts.google}
+          </span>
+        </button>
+      </div>
+
+      {/* 2. MODE CONTEXT BANNER & TOOLBAR */}
+      <div className="bg-surface-container-lowest border-x border-b border-outline-variant/30 p-3.5 shadow-xs flex flex-col gap-3">
+        {/* If in Google Sheets mode: show clear live mirror header */}
+        {activeMode === 'google' ? (
+          <div className="flex items-center justify-between flex-wrap gap-2.5 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">cloud_done</span>
               </div>
-              <p className="text-[11px] text-on-surface-variant">
-                Full-featured institutional roster ledger with isolated multi-source architecture & instant cloud sync.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-xs text-emerald-900 dark:text-emerald-200">
+                    Google Sheets Live Mirror Mode
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-200/60 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200 font-mono font-semibold">
+                    {googleMeta?.sheetReference || 'Students_Master'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
+                  Synchronized live from external spreadsheet. Institutional fee ledger is protected against accidental overwrites.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTriggerGoogleSync}
+                disabled={googleSyncing}
+                className="h-8 px-3 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${googleSyncing ? 'animate-spin' : ''}`}>
+                  sync
+                </span>
+                <span>{googleSyncing ? 'Syncing...' : 'Sync Live Changes'}</span>
+              </button>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Add Row Button */}
-            <button
-              onClick={handleAddNewRow}
-              className="h-8 px-3 rounded bg-primary text-on-primary hover:bg-primary/90 text-label-sm font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-            >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              <span>Add Row</span>
-            </button>
-
-            {/* Import Button */}
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="h-8 px-3 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface text-label-sm font-medium flex items-center gap-1.5 transition-all"
-            >
-              <span className="material-symbols-outlined text-[16px] text-primary">upload_file</span>
-              <span>Import Excel / CSV</span>
-            </button>
-
-            {/* Export Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowExportMenu((p) => !p)}
-                disabled={exportLoading}
-                className="h-8 px-3 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface text-label-sm font-medium flex items-center gap-1.5 transition-all disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[16px] text-secondary">
-                  {exportLoading ? 'hourglass_top' : 'download'}
-                </span>
-                <span>{exportLoading ? 'Exporting...' : 'Export'}</span>
-                <span className="material-symbols-outlined text-[14px]">expand_more</span>
-              </button>
-
-              {showExportMenu && (
-                <div className="absolute right-0 top-9 w-48 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-xl z-50 py-1 font-body-sm text-on-surface animate-in fade-in zoom-in-95 duration-100">
+        ) : (
+          /* Native Sheet Mode: Editable Sheet Name & Save Indicator */
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {isEditingSheetName ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={tempSheetName}
+                    onChange={(e) => setTempSheetName(e.target.value)}
+                    className="h-7 px-2 bg-surface-container border border-primary rounded text-xs font-bold text-on-surface"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveSheetName()}
+                  />
                   <button
-                    onClick={() => handleExport('xlsx')}
-                    className="w-full text-left px-3 py-2 hover:bg-surface-container flex items-center gap-2 text-xs"
+                    onClick={handleSaveSheetName}
+                    className="px-2 py-1 rounded bg-primary text-on-primary text-[10px] font-bold"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-secondary">table_view</span>
-                    <div>
-                      <div className="font-semibold">Export as Excel</div>
-                      <div className="text-[10px] text-on-surface-variant">Microsoft Excel (.xlsx)</div>
-                    </div>
+                    Save
                   </button>
                   <button
-                    onClick={() => handleExport('csv')}
-                    className="w-full text-left px-3 py-2 hover:bg-surface-container flex items-center gap-2 text-xs border-t border-outline-variant/20"
+                    onClick={() => setIsEditingSheetName(false)}
+                    className="px-2 py-1 rounded bg-surface-container text-on-surface text-[10px]"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-primary">description</span>
-                    <div>
-                      <div className="font-semibold">Export as CSV</div>
-                      <div className="text-[10px] text-on-surface-variant">Standard Comma Separated (.csv)</div>
-                    </div>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <h3 className="font-bold text-sm text-on-surface tracking-tight flex items-center gap-1">
+                    <span>{sheetName}</span>
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setTempSheetName(sheetName);
+                      setIsEditingSheetName(true);
+                    }}
+                    className="p-1 rounded text-outline hover:text-primary hover:bg-surface-container opacity-60 group-hover:opacity-100 transition-all"
+                    title="Rename this Native Sheet"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">edit</span>
                   </button>
                 </div>
               )}
+
+              {/* Cloud Save Pill */}
+              <div className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium ml-2">
+                {syncStatus === 'saving' && (
+                  <>
+                    <span className="material-symbols-outlined text-[13px] animate-spin text-primary">sync</span>
+                    <span>Saving to cloud...</span>
+                  </>
+                )}
+                {syncStatus === 'saved' && (
+                  <>
+                    <span className="material-symbols-outlined text-[13px] text-secondary">cloud_done</span>
+                    <span className="text-secondary font-medium">Saved</span>
+                  </>
+                )}
+                {syncStatus === 'error' && (
+                  <>
+                    <span className="material-symbols-outlined text-[13px] text-error">cloud_off</span>
+                    <span className="text-error font-semibold">Save failed</span>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Presets Settings Button */}
-            <button
-              onClick={() => setShowPresetModal(true)}
-              className="h-8 px-2.5 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface text-label-sm flex items-center gap-1 transition-all"
-              title="Sheet Presets & Default Configurations"
-            >
-              <span className="material-symbols-outlined text-[16px] text-tertiary">tune</span>
-              <span className="hidden sm:inline">Presets</span>
-            </button>
-
-            {/* Reload Data */}
-            <button
-              onClick={loadData}
-              disabled={loading}
-              className="h-8 w-8 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface flex items-center justify-center transition-all disabled:opacity-50"
-              title="Reload Sheet Data"
-            >
-              <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin text-primary' : ''}`}>
-                refresh
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Sub-toolbar: Filters, Column Views, and Batch Selection Actions */}
-        <div className="flex items-center justify-between flex-wrap gap-2.5 pt-2 border-t border-outline-variant/20 text-xs">
-          {/* Left: View Modes & Source Filter Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Source Provider Tabs */}
-            <div className="flex items-center bg-surface-container p-0.5 rounded border border-outline-variant/30">
+            {/* Native Sheet Action Buttons */}
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setSourceFilter('all')}
-                className={`px-2.5 py-1 rounded text-label-sm font-medium transition-all ${
-                  sourceFilter === 'all'
-                    ? 'bg-surface-container-lowest text-primary shadow-xs font-semibold'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
+                onClick={handleAddNewRow}
+                className="h-8 px-3 rounded bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold flex items-center gap-1 shadow-sm transition-all"
               >
-                All Sources ({stats.total})
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span>Add Row</span>
               </button>
-              <button
-                onClick={() => setSourceFilter('native_sheet')}
-                className={`px-2.5 py-1 rounded text-label-sm font-medium transition-all ${
-                  sourceFilter === 'native_sheet'
-                    ? 'bg-surface-container-lowest text-primary shadow-xs font-semibold'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                AlphaSheet Native ({stats.nativeCount})
-              </button>
-              <button
-                onClick={() => setSourceFilter('google_sheets')}
-                className={`px-2.5 py-1 rounded text-label-sm font-medium transition-all ${
-                  sourceFilter === 'google_sheets'
-                    ? 'bg-surface-container-lowest text-primary shadow-xs font-semibold'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                Google Sheets ({stats.googleCount})
-              </button>
-            </div>
 
-            {/* Column Presets */}
-            <div className="flex items-center gap-1 text-on-surface-variant ml-1">
-              <span className="text-[11px] font-medium text-outline">View:</span>
-              {(['master', 'academic', 'finance', 'contact'] as const).map((view) => (
-                <button
-                  key={view}
-                  onClick={() => setColumnView(view)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize border transition-all ${
-                    columnView === view
-                      ? 'bg-primary/10 border-primary/30 text-primary font-semibold'
-                      : 'border-transparent text-on-surface-variant hover:bg-surface-container'
-                  }`}
-                >
-                  {view}
-                </button>
-              ))}
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="h-8 px-3 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface text-xs font-medium flex items-center gap-1 transition-all"
+              >
+                <span className="material-symbols-outlined text-[16px] text-primary">upload_file</span>
+                <span>Import Excel</span>
+              </button>
+
+              <button
+                onClick={() => setShowPresetModal(true)}
+                className="h-8 px-2.5 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface text-xs font-medium flex items-center gap-1 transition-all"
+                title="Sheet Presets & Course Settings"
+              >
+                <span className="material-symbols-outlined text-[16px] text-tertiary">tune</span>
+                <span>Presets</span>
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Right: Search, Payment Status, and Batch Actions */}
+        {/* 3. SEARCH & EXPORT ROW */}
+        <div className="flex items-center justify-between flex-wrap gap-2.5 pt-2 border-t border-outline-variant/15 text-xs">
+          {/* Left: Quick stats pill */}
+          <div className="flex items-center gap-3 text-on-surface-variant font-medium text-[11px]">
+            <span>
+              Total: <strong className="text-on-surface">{stats.total}</strong> students
+            </span>
+            <span>•</span>
+            <span>
+              Total Fees: <strong className="text-on-surface font-mono">₹{stats.totalFees.toLocaleString('en-IN')}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Verified: <strong className="text-secondary font-mono">₹{stats.totalCollected.toLocaleString('en-IN')}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Balance Due: <strong className="text-error font-mono">₹{stats.totalBalance.toLocaleString('en-IN')}</strong>
+            </span>
+          </div>
+
+          {/* Right: Filters & Export */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Batch Actions when rows are selected */}
-            {selectedIds.size > 0 && (
-              <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded border border-primary/20 animate-in fade-in">
-                <span className="font-semibold text-[11px]">{selectedIds.size} row(s) selected</span>
+            {/* Batch Action Toolbar when rows are selected */}
+            {selectedIds.size > 0 && activeMode === 'native' && (
+              <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded border border-primary/20">
+                <span className="font-semibold text-[11px]">{selectedIds.size} selected</span>
                 <button
                   onClick={() => setShowBatchFillModal(true)}
-                  className="px-2 py-0.5 rounded bg-primary text-on-primary text-[10px] font-semibold hover:bg-primary/90"
+                  className="px-2 py-0.5 rounded bg-primary text-on-primary text-[10px] font-semibold"
                 >
                   Quick Fill
                 </button>
                 <button
-                  onClick={handleBatchDelete}
-                  className="px-2 py-0.5 rounded bg-error text-on-error text-[10px] font-semibold hover:bg-error/90"
+                  onClick={async () => {
+                    if (!confirm(`Delete ${selectedIds.size} selected students?`)) return;
+                    await Promise.all(Array.from(selectedIds).map((id) => api.deleteStudent(id, true)));
+                    loadData();
+                  }}
+                  className="px-2 py-0.5 rounded bg-error text-on-error text-[10px] font-semibold"
                 >
-                  Delete Selected
+                  Delete
                 </button>
               </div>
             )}
@@ -594,7 +654,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search roll, name, phone..."
-                className="h-7 pl-6 pr-2 bg-surface-container border border-outline-variant/30 rounded text-[11px] text-on-surface focus:outline-none focus:border-primary w-48"
+                className="h-7 pl-6 pr-2 bg-surface-container border border-outline-variant/30 rounded text-[11px] text-on-surface focus:outline-none focus:border-primary w-44"
               />
             </div>
 
@@ -609,37 +669,58 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
               <option value="PARTIAL">PARTIAL</option>
               <option value="PENDING">PENDING</option>
             </select>
-          </div>
-        </div>
 
-        {/* Ledger Summary Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-outline-variant/15 text-xs">
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-container/60 rounded">
-            <span className="text-on-surface-variant text-[11px]">Total Enrolled:</span>
-            <span className="font-data-mono font-semibold text-on-surface">{stats.total}</span>
-          </div>
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-container/60 rounded">
-            <span className="text-on-surface-variant text-[11px]">Total Fee Pool:</span>
-            <span className="font-data-mono font-semibold text-on-surface">₹{stats.totalFees.toLocaleString('en-IN')}</span>
-          </div>
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-container/60 rounded">
-            <span className="text-on-surface-variant text-[11px]">Total Verified:</span>
-            <span className="font-data-mono font-semibold text-secondary">₹{stats.totalCollected.toLocaleString('en-IN')}</span>
-          </div>
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-surface-container/60 rounded">
-            <span className="text-on-surface-variant text-[11px]">Outstanding Balance:</span>
-            <span className="font-data-mono font-semibold text-error">₹{stats.totalBalance.toLocaleString('en-IN')}</span>
+            {/* Export Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu((p) => !p)}
+                disabled={exportLoading}
+                className="h-7 px-2.5 rounded bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[14px] text-secondary">download</span>
+                <span>{exportLoading ? '...' : 'Export'}</span>
+                <span className="material-symbols-outlined text-[13px]">expand_more</span>
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 top-8 w-44 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-xl z-50 py-1 font-body-sm text-on-surface">
+                  <button
+                    onClick={() => handleExport('xlsx')}
+                    className="w-full text-left px-3 py-1.5 hover:bg-surface-container flex items-center gap-2 text-xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-secondary">table_view</span>
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    onClick={() => handleExport('csv')}
+                    className="w-full text-left px-3 py-1.5 hover:bg-surface-container flex items-center gap-2 text-xs border-t border-outline-variant/20"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-primary">description</span>
+                    <span>CSV (.csv)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="h-7 w-7 rounded bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface flex items-center justify-center transition-all disabled:opacity-50"
+              title="Refresh roster"
+            >
+              <span className={`material-symbols-outlined text-[14px] ${loading ? 'animate-spin' : ''}`}>
+                refresh
+              </span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Spreadsheet Main Grid Area */}
-      <div className="bg-surface-container-lowest border-x border-b border-outline-variant/30 rounded-b-lg overflow-x-auto shadow-sm min-h-[500px]">
+      {/* 4. SPREADSHEET TABLE GRID (CLEAN, NO OVERKILL) */}
+      <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-b-xl overflow-x-auto shadow-sm min-h-[460px]">
         <table className="w-full text-left border-collapse text-xs">
-          {/* Sticky Header */}
-          <thead className="sticky top-0 z-30 bg-surface-container-low border-b border-outline-variant/30 shadow-xs">
+          <thead className="sticky top-0 z-20 bg-surface-container-low border-b border-outline-variant/30">
             <tr className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider select-none">
-              {/* Checkbox */}
               <th className="py-2.5 px-3 w-10 text-center border-r border-outline-variant/20">
                 <input
                   type="checkbox"
@@ -648,108 +729,54 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                   className="rounded border-outline-variant text-primary focus:ring-0 cursor-pointer"
                 />
               </th>
-
-              {/* Row Number */}
-              <th className="py-2.5 px-2.5 w-12 text-center border-r border-outline-variant/20 font-data-mono text-[10px] text-outline">
+              <th className="py-2.5 px-2.5 w-12 text-center border-r border-outline-variant/20 font-mono text-[10px] text-outline">
                 #
               </th>
-
-              {/* Source Provider Badge */}
-              <th className="py-2.5 px-3 w-24 text-center border-r border-outline-variant/20">
-                Source
-              </th>
-
-              {/* Roll / Register No */}
               <th className="py-2.5 px-3 w-32 border-r border-outline-variant/20">
-                Roll / Reg No
+                Roll No
               </th>
-
-              {/* Student Name */}
-              <th className="py-2.5 px-3 min-w-[160px] border-r border-outline-variant/20">
+              <th className="py-2.5 px-3 min-w-[170px] border-r border-outline-variant/20">
                 Student Name
               </th>
-
-              {/* WhatsApp Contact */}
-              {(columnView === 'master' || columnView === 'contact') && (
-                <th className="py-2.5 px-3 min-w-[150px] border-r border-outline-variant/20">
-                  WhatsApp Number
-                </th>
-              )}
-
-              {/* Course */}
-              {(columnView === 'master' || columnView === 'academic') && (
-                <th className="py-2.5 px-3 min-w-[120px] border-r border-outline-variant/20">
-                  Course
-                </th>
-              )}
-
-              {/* Department */}
-              {(columnView === 'master' || columnView === 'academic') && (
-                <th className="py-2.5 px-3 min-w-[180px] border-r border-outline-variant/20">
-                  Department
-                </th>
-              )}
-
-              {/* Year & Section */}
-              {(columnView === 'master' || columnView === 'academic') && (
-                <>
-                  <th className="py-2.5 px-2.5 w-16 text-center border-r border-outline-variant/20">
-                    Year
-                  </th>
-                  <th className="py-2.5 px-2.5 w-16 text-center border-r border-outline-variant/20">
-                    Sec
-                  </th>
-                </>
-              )}
-
-              {/* Father Name */}
-              {(columnView === 'master' || columnView === 'contact') && (
-                <th className="py-2.5 px-3 min-w-[140px] border-r border-outline-variant/20">
-                  Father / Guardian
-                </th>
-              )}
-
-              {/* Total Fee */}
-              {(columnView === 'master' || columnView === 'finance') && (
-                <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
-                  Total Fee (₹)
-                </th>
-              )}
-
-              {/* Paid Amount */}
-              {(columnView === 'master' || columnView === 'finance') && (
-                <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
-                  Paid (₹)
-                </th>
-              )}
-
-              {/* Balance */}
-              {(columnView === 'master' || columnView === 'finance') && (
-                <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
-                  Balance (₹)
-                </th>
-              )}
-
-              {/* Due Date */}
-              {(columnView === 'master' || columnView === 'finance') && (
-                <th className="py-2.5 px-3 w-32 border-r border-outline-variant/20">
-                  Due Date
-                </th>
-              )}
-
-              {/* Payment Status */}
-              <th className="py-2.5 px-3 w-28 text-center border-r border-outline-variant/20">
-                Fee Status
+              <th className="py-2.5 px-3 min-w-[150px] border-r border-outline-variant/20">
+                WhatsApp Phone
               </th>
-
-              {/* Row Action Controls */}
-              <th className="py-2.5 px-2.5 w-16 text-center">
+              <th className="py-2.5 px-3 min-w-[110px] border-r border-outline-variant/20">
+                Course
+              </th>
+              <th className="py-2.5 px-3 min-w-[170px] border-r border-outline-variant/20">
+                Department
+              </th>
+              <th className="py-2.5 px-2 w-14 text-center border-r border-outline-variant/20">
+                Year
+              </th>
+              <th className="py-2.5 px-2 w-14 text-center border-r border-outline-variant/20">
+                Sec
+              </th>
+              <th className="py-2.5 px-3 min-w-[130px] border-r border-outline-variant/20">
+                Father / Guardian
+              </th>
+              <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
+                Total Fee (₹)
+              </th>
+              <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
+                Paid (₹)
+              </th>
+              <th className="py-2.5 px-3 w-28 text-right border-r border-outline-variant/20">
+                Balance (₹)
+              </th>
+              <th className="py-2.5 px-3 w-32 border-r border-outline-variant/20">
+                Due Date
+              </th>
+              <th className="py-2.5 px-3 w-24 text-center border-r border-outline-variant/20">
+                Status
+              </th>
+              <th className="py-2.5 px-2 w-14 text-center">
                 Action
               </th>
             </tr>
           </thead>
 
-          {/* Grid Body */}
           <tbody className="divide-y divide-outline-variant/15 text-body-sm text-on-surface">
             {loading ? (
               <tr>
@@ -758,8 +785,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                     <span className="material-symbols-outlined text-primary text-[28px] animate-spin">
                       progress_activity
                     </span>
-                    <span className="font-medium text-on-surface">Loading AlphaSheet ledger matrix...</span>
-                    <span className="text-[11px] text-outline">Synchronizing isolated student rosters</span>
+                    <span className="font-semibold text-on-surface">Loading {activeMode === 'native' ? sheetName : 'Google Sheets mirror'}...</span>
                   </div>
                 </td>
               </tr>
@@ -772,7 +798,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                     onClick={loadData}
                     className="mt-3 px-3 py-1 rounded bg-error text-on-error text-xs font-semibold hover:bg-error/90"
                   >
-                    Retry Connection
+                    Retry
                   </button>
                 </td>
               </tr>
@@ -780,30 +806,38 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
               <tr>
                 <td colSpan={16} className="py-20 text-center text-on-surface-variant">
                   <span className="material-symbols-outlined text-[36px] text-outline block mb-2">grid_off</span>
-                  <p className="font-semibold text-on-surface text-[14px]">No student records in this view</p>
-                  <p className="text-xs text-outline mt-1 max-w-md mx-auto">
-                    Click <strong>Add Row</strong> to create your first native ledger entry, or use{' '}
-                    <strong>Import Excel / CSV</strong> to bulk ingest institutional rosters.
+                  <p className="font-semibold text-on-surface text-[14px]">
+                    {activeMode === 'native'
+                      ? 'No students in this Native Sheet yet'
+                      : 'No records synced from Google Sheets'}
                   </p>
-                  <div className="flex items-center justify-center gap-2 mt-4">
-                    <button
-                      onClick={handleAddNewRow}
-                      className="px-3 py-1.5 rounded bg-primary text-on-primary text-xs font-semibold hover:bg-primary/90"
-                    >
-                      + Add New Student Row
-                    </button>
-                    <button
-                      onClick={() => setShowImportModal(true)}
-                      className="px-3 py-1.5 rounded bg-surface-container border border-outline-variant/30 text-xs font-medium hover:bg-surface-container-high"
-                    >
-                      Import Excel / CSV
-                    </button>
-                  </div>
+                  <p className="text-xs text-outline mt-1 max-w-md mx-auto">
+                    {activeMode === 'native'
+                      ? 'Click "+ Add Row" or "Import Excel" to populate this native roster.'
+                      : 'Ensure your Google Sheet is linked and click "Sync Live Changes".'}
+                  </p>
+                  {activeMode === 'native' && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      <button
+                        onClick={handleAddNewRow}
+                        className="px-3.5 py-1.5 rounded bg-primary text-on-primary text-xs font-semibold hover:bg-primary/90"
+                      >
+                        + Add First Row
+                      </button>
+                      <button
+                        onClick={() => setShowImportModal(true)}
+                        className="px-3.5 py-1.5 rounded bg-surface-container border border-outline-variant/30 text-xs font-medium hover:bg-surface-container-high"
+                      >
+                        Import Excel / CSV
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ) : (
               rows.map((row, idx) => {
                 const isSelected = selectedIds.has(row.id);
+                const isEditable = activeMode === 'native';
 
                 return (
                   <tr
@@ -823,183 +857,183 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                     </td>
 
                     {/* Row Index */}
-                    <td className="py-1 px-2.5 text-center border-r border-outline-variant/15 font-data-mono text-[11px] text-outline">
+                    <td className="py-1 px-2.5 text-center border-r border-outline-variant/15 font-mono text-[11px] text-outline">
                       {idx + 1}
                     </td>
 
-                    {/* Source Provider Tag */}
-                    <td className="py-1 px-2 text-center border-r border-outline-variant/15">
-                      {row.sourceProvider === 'native_sheet' ? (
-                        <span className="font-data-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                          NATIVE
-                        </span>
-                      ) : row.sourceProvider === 'excel_import' ? (
-                        <span className="font-data-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                          EXCEL
-                        </span>
+                    {/* Roll No */}
+                    <td className="py-1 px-3 border-r border-outline-variant/15 font-mono text-[11px] font-semibold text-on-surface">
+                      {isEditable ? (
+                        <input
+                          type="text"
+                          value={row.externalStudentId}
+                          onChange={(e) => handleCellChange(row.id, 'externalStudentId', e.target.value)}
+                          className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-mono"
+                        />
                       ) : (
-                        <span className="font-data-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          GSHEET
-                        </span>
+                        <span>{row.externalStudentId}</span>
                       )}
-                    </td>
-
-                    {/* Roll / Register No */}
-                    <td className="py-1 px-3 border-r border-outline-variant/15 font-data-mono text-[11px] font-semibold text-on-surface">
-                      <input
-                        type="text"
-                        value={row.externalStudentId}
-                        onChange={(e) => handleCellChange(row.id, 'externalStudentId', e.target.value)}
-                        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-data-mono"
-                        placeholder="Roll No"
-                      />
                     </td>
 
                     {/* Student Name */}
                     <td className="py-1 px-3 border-r border-outline-variant/15 font-medium text-on-surface">
-                      <input
-                        type="text"
-                        value={row.name}
-                        onChange={(e) => handleCellChange(row.id, 'name', e.target.value)}
-                        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-on-surface font-semibold"
-                        placeholder="Student Full Name"
-                      />
+                      {isEditable ? (
+                        <input
+                          type="text"
+                          value={row.name}
+                          onChange={(e) => handleCellChange(row.id, 'name', e.target.value)}
+                          className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-semibold"
+                        />
+                      ) : (
+                        <span className="font-semibold">{row.name}</span>
+                      )}
                     </td>
 
-                    {/* WhatsApp Number with verification icon */}
-                    {(columnView === 'master' || columnView === 'contact') && (
-                      <td className="py-1 px-3 border-r border-outline-variant/15 font-data-mono text-[11px]">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`w-2 h-2 rounded-full shrink-0 ${
-                              row.validationStatus === 'VALID' && row.whatsappNumber
-                                ? 'bg-secondary'
-                                : 'bg-error'
-                            }`}
-                            title={
-                              row.validationStatus === 'VALID' && row.whatsappNumber
-                                ? 'Valid WhatsApp Number'
-                                : 'Invalid or Missing phone number'
-                            }
-                          />
+                    {/* WhatsApp Number */}
+                    <td className="py-1 px-3 border-r border-outline-variant/15 font-mono text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            row.validationStatus === 'VALID' && row.whatsappNumber
+                              ? 'bg-secondary'
+                              : 'bg-error'
+                          }`}
+                          title={
+                            row.validationStatus === 'VALID' && row.whatsappNumber
+                              ? 'Valid WhatsApp'
+                              : 'Invalid / Missing number'
+                          }
+                        />
+                        {isEditable ? (
                           <input
                             type="text"
                             value={row.whatsappNumber}
                             onChange={(e) => handleCellChange(row.id, 'whatsappNumber', e.target.value)}
-                            placeholder="+919876543210"
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-data-mono"
+                            placeholder="+91..."
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-mono"
                           />
-                        </div>
-                      </td>
-                    )}
+                        ) : (
+                          <span>{row.whatsappNumber || 'Missing'}</span>
+                        )}
+                      </div>
+                    </td>
 
                     {/* Course */}
-                    {(columnView === 'master' || columnView === 'academic') && (
-                      <td className="py-1 px-2 border-r border-outline-variant/15">
+                    <td className="py-1 px-2 border-r border-outline-variant/15">
+                      {isEditable ? (
                         <input
                           type="text"
                           list="course-presets-list"
                           value={row.course}
                           onChange={(e) => handleCellChange(row.id, 'course', e.target.value)}
                           className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
-                          placeholder="Course"
                         />
-                      </td>
-                    )}
+                      ) : (
+                        <span>{row.course}</span>
+                      )}
+                    </td>
 
                     {/* Department */}
-                    {(columnView === 'master' || columnView === 'academic') && (
-                      <td className="py-1 px-2 border-r border-outline-variant/15">
+                    <td className="py-1 px-2 border-r border-outline-variant/15">
+                      {isEditable ? (
                         <input
                           type="text"
                           list="department-presets-list"
                           value={row.department}
                           onChange={(e) => handleCellChange(row.id, 'department', e.target.value)}
                           className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
-                          placeholder="Department"
                         />
-                      </td>
-                    )}
+                      ) : (
+                        <span className="truncate block max-w-[160px]">{row.department}</span>
+                      )}
+                    </td>
 
-                    {/* Year & Section */}
-                    {(columnView === 'master' || columnView === 'academic') && (
-                      <>
-                        <td className="py-1 px-2 border-r border-outline-variant/15 text-center">
-                          <input
-                            type="text"
-                            value={row.year}
-                            onChange={(e) => handleCellChange(row.id, 'year', e.target.value)}
-                            className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
-                          />
-                        </td>
-                        <td className="py-1 px-2 border-r border-outline-variant/15 text-center">
-                          <input
-                            type="text"
-                            value={row.section}
-                            onChange={(e) => handleCellChange(row.id, 'section', e.target.value.toUpperCase())}
-                            className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px] font-bold"
-                          />
-                        </td>
-                      </>
-                    )}
+                    {/* Year */}
+                    <td className="py-1 px-2 border-r border-outline-variant/15 text-center font-mono">
+                      {isEditable ? (
+                        <input
+                          type="text"
+                          value={row.year}
+                          onChange={(e) => handleCellChange(row.id, 'year', e.target.value)}
+                          className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
+                        />
+                      ) : (
+                        <span>{row.year}</span>
+                      )}
+                    </td>
+
+                    {/* Section */}
+                    <td className="py-1 px-2 border-r border-outline-variant/15 text-center font-mono font-bold">
+                      {isEditable ? (
+                        <input
+                          type="text"
+                          value={row.section}
+                          onChange={(e) => handleCellChange(row.id, 'section', e.target.value.toUpperCase())}
+                          className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
+                        />
+                      ) : (
+                        <span>{row.section}</span>
+                      )}
+                    </td>
 
                     {/* Father Name */}
-                    {(columnView === 'master' || columnView === 'contact') && (
-                      <td className="py-1 px-3 border-r border-outline-variant/15">
+                    <td className="py-1 px-3 border-r border-outline-variant/15">
+                      {isEditable ? (
                         <input
                           type="text"
                           value={row.fatherName}
                           onChange={(e) => handleCellChange(row.id, 'fatherName', e.target.value)}
                           className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px]"
-                          placeholder="Father Name"
                         />
-                      </td>
-                    )}
+                      ) : (
+                        <span>{row.fatherName || '-'}</span>
+                      )}
+                    </td>
 
-                    {/* Total Fee (Editable) */}
-                    {(columnView === 'master' || columnView === 'finance') && (
-                      <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-data-mono font-medium">
+                    {/* Total Fee */}
+                    <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-mono font-semibold">
+                      {isEditable ? (
                         <input
                           type="number"
                           value={row.fee?.total || 0}
                           onChange={(e) => handleCellChange(row.id, 'fee.total', e.target.value)}
-                          className="w-full text-right bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-data-mono font-semibold"
+                          className="w-full text-right bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-mono font-semibold"
                         />
-                      </td>
-                    )}
+                      ) : (
+                        <span>₹{(row.fee?.total || 0).toLocaleString('en-IN')}</span>
+                      )}
+                    </td>
 
-                    {/* Paid (Read-only ledger value) */}
-                    {(columnView === 'master' || columnView === 'finance') && (
-                      <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-data-mono text-secondary font-semibold">
-                        ₹{(row.fee?.paid || 0).toLocaleString('en-IN')}
-                      </td>
-                    )}
+                    {/* Paid */}
+                    <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-mono text-secondary font-semibold">
+                      ₹{(row.fee?.paid || 0).toLocaleString('en-IN')}
+                    </td>
 
                     {/* Balance */}
-                    {(columnView === 'master' || columnView === 'finance') && (
-                      <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-data-mono font-bold text-on-surface">
-                        <span className={row.fee?.balance > 0 ? 'text-error' : 'text-secondary'}>
-                          ₹{(row.fee?.balance || 0).toLocaleString('en-IN')}
-                        </span>
-                      </td>
-                    )}
+                    <td className="py-1 px-3 border-r border-outline-variant/15 text-right font-mono font-bold">
+                      <span className={row.fee?.balance > 0 ? 'text-error' : 'text-secondary'}>
+                        ₹{(row.fee?.balance || 0).toLocaleString('en-IN')}
+                      </span>
+                    </td>
 
                     {/* Due Date */}
-                    {(columnView === 'master' || columnView === 'finance') && (
-                      <td className="py-1 px-2 border-r border-outline-variant/15 font-data-mono text-[11px]">
+                    <td className="py-1 px-2 border-r border-outline-variant/15 font-mono text-[11px]">
+                      {isEditable ? (
                         <input
                           type="date"
                           value={row.fee?.dueDate || ''}
                           onChange={(e) => handleCellChange(row.id, 'fee.dueDate', e.target.value)}
-                          className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 text-[11px] font-data-mono"
+                          className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest rounded px-1 font-mono text-[11px]"
                         />
-                      </td>
-                    )}
+                      ) : (
+                        <span>{row.fee?.dueDate || '-'}</span>
+                      )}
+                    </td>
 
                     {/* Fee Status Badge */}
-                    <td className="py-1 px-3 border-r border-outline-variant/15 text-center">
+                    <td className="py-1 px-2 border-r border-outline-variant/15 text-center">
                       <span
-                        className={`font-data-mono text-[9px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                        className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded-full inline-block ${
                           row.fee?.status === 'PAID'
                             ? 'bg-secondary/15 text-secondary'
                             : row.fee?.status === 'PARTIAL'
@@ -1018,18 +1052,20 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
                           <button
                             onClick={() => onOpenStudentDrawer(row)}
                             className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container"
-                            title="Open Student Profile Drawer"
+                            title="Open Profile Drawer"
                           >
                             <span className="material-symbols-outlined text-[15px]">side_navigation</span>
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDeleteRow(row.id, row.name)}
-                          className="p-1 rounded text-on-surface-variant hover:text-error hover:bg-surface-container"
-                          title="Delete Row"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">delete</span>
-                        </button>
+                        {isEditable && (
+                          <button
+                            onClick={() => handleDeleteRow(row.id, row.name)}
+                            className="p-1 rounded text-on-surface-variant hover:text-error hover:bg-surface-container"
+                            title="Delete Row"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">delete</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1052,7 +1088,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         ))}
       </datalist>
 
-      {/* MODAL 1: Preset Settings Modal */}
+      {/* Preset Settings Modal */}
       {showPresetModal && (
         <PresetSettingsModal
           presets={presets}
@@ -1064,7 +1100,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         />
       )}
 
-      {/* MODAL 2: Excel / CSV Import Modal with preview & mapping */}
+      {/* Excel / CSV Import Modal */}
       {showImportModal && (
         <ExcelImportModal
           presets={presets}
@@ -1076,7 +1112,7 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
         />
       )}
 
-      {/* MODAL 3: Batch Fill Modal */}
+      {/* Batch Fill Modal */}
       {showBatchFillModal && (
         <BatchFillModal
           selectedCount={selectedIds.size}
@@ -1141,7 +1177,7 @@ const PresetSettingsModal: React.FC<PresetModalProps> = ({ presets, onSave, onCl
         <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20 mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[22px]">tune</span>
-            <h3 className="font-headline-sm text-base font-bold text-on-surface">AlphaSheet Studio Presets</h3>
+            <h3 className="font-headline-sm text-base font-bold text-on-surface">AlphaSheet Presets</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded text-outline hover:text-on-surface">
             ✕
@@ -1151,13 +1187,13 @@ const PresetSettingsModal: React.FC<PresetModalProps> = ({ presets, onSave, onCl
         <form onSubmit={handleSave} className="flex flex-col gap-4 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-on-surface-variant font-medium mb-1">Default Academic Year</label>
+              <label className="block text-on-surface-variant font-medium mb-1">Academic Year</label>
               <input
                 type="text"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(e.target.value)}
                 placeholder="2025-2026"
-                className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono"
+                className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono"
               />
             </div>
             <div>
@@ -1166,18 +1202,18 @@ const PresetSettingsModal: React.FC<PresetModalProps> = ({ presets, onSave, onCl
                 type="number"
                 value={defaultFee}
                 onChange={(e) => setDefaultFee(Number(e.target.value))}
-                className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono"
+                className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-on-surface-variant font-medium mb-1">Default Due Date (Days from Today)</label>
+            <label className="block text-on-surface-variant font-medium mb-1">Due Date (Days from Today)</label>
             <input
               type="number"
               value={dueDateDays}
               onChange={(e) => setDueDateDays(Number(e.target.value))}
-              className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono"
+              className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono"
             />
           </div>
 
@@ -1189,7 +1225,7 @@ const PresetSettingsModal: React.FC<PresetModalProps> = ({ presets, onSave, onCl
               rows={3}
               value={courseInput}
               onChange={(e) => setCourseInput(e.target.value)}
-              className="w-full p-2 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono text-[11px]"
+              className="w-full p-2 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono text-[11px]"
             />
           </div>
 
@@ -1201,7 +1237,7 @@ const PresetSettingsModal: React.FC<PresetModalProps> = ({ presets, onSave, onCl
               rows={4}
               value={deptInput}
               onChange={(e) => setDeptInput(e.target.value)}
-              className="w-full p-2 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono text-[11px]"
+              className="w-full p-2 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono text-[11px]"
             />
           </div>
 
@@ -1250,7 +1286,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Download Sample Template
   const handleDownloadTemplate = async () => {
     try {
       await api.downloadImportTemplate('xlsx');
@@ -1259,7 +1294,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
     }
   };
 
-  // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1272,7 +1306,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
     reader.onload = async (evt) => {
       try {
         const base64 = evt.target?.result as string;
-
         const parseRes = await api.parseImportFile(base64);
         setHeaders(parseRes.headers || []);
         setPreviewRows(parseRes.previewRows || []);
@@ -1288,7 +1321,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
     reader.readAsDataURL(file);
   };
 
-  // Execute Import
   const handleExecuteImport = async () => {
     if (allRows.length === 0) return;
     setLoading(true);
@@ -1317,16 +1349,15 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20 mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[24px]">upload_file</span>
             <div>
               <h3 className="font-headline-sm text-base font-bold text-on-surface">
-                Import Roster into AlphaSheet
+                Import Excel into Native Sheet
               </h3>
               <p className="text-[11px] text-on-surface-variant">
-                Upload Excel (.xlsx, .xls) or CSV files with auto column mapping & safe ledger creation.
+                Upload .xlsx, .xls or .csv to quickly add students to your active Native Sheet.
               </p>
             </div>
           </div>
@@ -1335,7 +1366,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
           </button>
         </div>
 
-        {/* Modal Body */}
         <div className="overflow-y-auto flex-1 pr-1 text-xs">
           {errorMessage && (
             <div className="p-3 mb-3 rounded bg-error/10 text-error border border-error/20 flex items-center gap-2">
@@ -1344,7 +1374,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
             </div>
           )}
 
-          {/* STEP 1: Upload */}
           {step === 'upload' && (
             <div className="flex flex-col gap-4">
               <div
@@ -1369,12 +1398,11 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                 </div>
               </div>
 
-              {/* Template download notice */}
               <div className="p-3 rounded bg-surface-container flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-on-surface">Need the standard spreadsheet format?</div>
+                  <div className="font-semibold text-on-surface">Standard Excel Template</div>
                   <div className="text-[11px] text-on-surface-variant">
-                    Download the pre-configured Excel template with sample rows and headers.
+                    Download pre-formatted spreadsheet template with sample columns.
                   </div>
                 </div>
                 <button
@@ -1389,12 +1417,11 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
             </div>
           )}
 
-          {/* STEP 2: Column Mapping & Preview */}
           {step === 'mapping' && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between bg-surface-container p-2.5 rounded">
                 <span className="font-medium text-on-surface">
-                  File: <strong className="font-mono">{filename}</strong> ({allRows.length} total rows)
+                  File: <strong className="font-mono">{filename}</strong> ({allRows.length} rows detected)
                 </span>
                 <button
                   onClick={() => setStep('upload')}
@@ -1404,7 +1431,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                 </button>
               </div>
 
-              {/* Config fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-on-surface-variant font-medium mb-1">Target Academic Year</label>
@@ -1412,7 +1438,7 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                     type="text"
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
-                    className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-data-mono"
+                    className="w-full h-8 px-2.5 bg-surface-container border border-outline-variant/30 rounded text-on-surface font-mono"
                   />
                 </div>
                 <div className="flex items-center pt-5">
@@ -1424,15 +1450,14 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                       className="rounded border-outline-variant text-primary focus:ring-0"
                     />
                     <span className="text-on-surface font-medium text-[11px]">
-                      Update existing students if Roll No already exists
+                      Update existing students if Roll No matches
                     </span>
                   </label>
                 </div>
               </div>
 
-              {/* Detected Mapping Overview */}
               <div>
-                <h4 className="font-semibold text-on-surface mb-2">Column Mapping Verification:</h4>
+                <h4 className="font-semibold text-on-surface mb-2">Column Mapping:</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-surface-container-low p-3 rounded border border-outline-variant/20 max-h-36 overflow-y-auto">
                   {headers.map((h) => {
                     const mapped = detectedMapping[h];
@@ -1455,7 +1480,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                 </div>
               </div>
 
-              {/* Preview table */}
               <div>
                 <h4 className="font-semibold text-on-surface mb-1">Preview (First {previewRows.length} rows):</h4>
                 <div className="overflow-x-auto border border-outline-variant/20 rounded max-h-40">
@@ -1486,7 +1510,6 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
             </div>
           )}
 
-          {/* STEP 3: Importing Spinner */}
           {step === 'importing' && (
             <div className="py-12 text-center flex flex-col items-center justify-center gap-3">
               <span className="material-symbols-outlined text-primary text-[36px] animate-spin">
@@ -1495,45 +1518,40 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
               <div className="font-semibold text-on-surface text-[14px]">
                 Importing {allRows.length} student records...
               </div>
-              <div className="text-[11px] text-on-surface-variant max-w-sm">
-                Generating unique student IDs, validating WhatsApp contacts, and creating fee ledger accounts.
-              </div>
             </div>
           )}
 
-          {/* STEP 4: Completed Summary */}
           {step === 'completed' && importSummary && (
             <div className="py-6 flex flex-col items-center text-center gap-3">
               <div className="w-14 h-14 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                 <span className="material-symbols-outlined text-[32px]">task_alt</span>
               </div>
-              <h4 className="font-bold text-on-surface text-base">Import Completed Successfully!</h4>
+              <h4 className="font-bold text-on-surface text-base">Import Completed!</h4>
               <div className="grid grid-cols-3 gap-3 w-full max-w-md my-2">
                 <div className="p-3 bg-secondary/10 rounded border border-secondary/20">
                   <div className="text-secondary font-bold text-lg font-mono">{importSummary.added}</div>
-                  <div className="text-[11px] text-on-surface-variant">New Students Added</div>
+                  <div className="text-[11px] text-on-surface-variant">Added</div>
                 </div>
                 <div className="p-3 bg-primary/10 rounded border border-primary/20">
                   <div className="text-primary font-bold text-lg font-mono">{importSummary.updated}</div>
-                  <div className="text-[11px] text-on-surface-variant">Existing Updated</div>
+                  <div className="text-[11px] text-on-surface-variant">Updated</div>
                 </div>
                 <div className="p-3 bg-surface-container rounded border border-outline-variant/30">
                   <div className="text-outline font-bold text-lg font-mono">{importSummary.skipped}</div>
-                  <div className="text-[11px] text-on-surface-variant">Skipped / Duplicates</div>
+                  <div className="text-[11px] text-on-surface-variant">Skipped</div>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20 mt-4 shrink-0">
           {step === 'completed' ? (
             <button
               onClick={onSuccess}
               className="px-5 py-2 rounded bg-primary text-on-primary font-semibold hover:bg-primary/90 shadow-sm"
             >
-              Done & View AlphaSheet
+              Done & View Roster
             </button>
           ) : (
             <>
@@ -1552,7 +1570,7 @@ const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ presets, onSuccess,
                   className="px-5 py-1.5 rounded bg-primary text-on-primary font-semibold hover:bg-primary/90 shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                  <span>Confirm & Ingest Records</span>
+                  <span>Confirm Import</span>
                 </button>
               )}
             </>
@@ -1646,7 +1664,7 @@ const BatchFillModal: React.FC<BatchFillModalProps> = ({ selectedCount, presets,
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-on-surface-variant font-medium mb-1">Set Academic Year</label>
+              <label className="block text-on-surface-variant font-medium mb-1">Set Year</label>
               <select
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
@@ -1672,7 +1690,7 @@ const BatchFillModal: React.FC<BatchFillModalProps> = ({ selectedCount, presets,
           </div>
 
           <div>
-            <label className="block text-on-surface-variant font-medium mb-1">Set Fee Due Date</label>
+            <label className="block text-on-surface-variant font-medium mb-1">Set Due Date</label>
             <input
               type="date"
               value={dueDate}

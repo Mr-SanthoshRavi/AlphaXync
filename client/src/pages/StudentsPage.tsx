@@ -266,54 +266,48 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
 
   return (
     <div className="flex flex-col w-full pb-10">
-      {/* Title & Toolbar */}
-      <div className="flex items-center justify-between py-space-sm mb-space-md flex-wrap gap-3">
-        <div className="flex items-center gap-space-xs flex-wrap">
-          <span className="material-symbols-outlined text-primary text-[24px]">school</span>
-          <h1 className="font-headline-md text-headline-md text-on-surface tracking-tight">Master Student Directory</h1>
+      {/* Title & View Switcher */}
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-outline-variant/20 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-[22px]">table_chart</span>
+          <h1 className="text-base font-bold text-on-surface tracking-tight">Institutional Student Rosters</h1>
           {cashierMode && (
-            <span className="font-data-mono text-[11px] bg-secondary text-on-secondary px-2 py-0.5 rounded font-semibold ml-2">
+            <span className="font-mono text-[10px] bg-secondary text-on-secondary px-2 py-0.5 rounded font-semibold ml-1">
               CASHIER DESK
-            </span>
-          )}
-
-          {/* View Mode Switcher Pill */}
-          <div className="flex items-center bg-surface-container p-0.5 rounded-lg border border-outline-variant/30 ml-2">
-            <button
-              onClick={() => handleViewModeChange('alphasheet')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded text-label-sm font-semibold transition-all ${
-                viewMode === 'alphasheet'
-                  ? 'bg-primary text-on-primary shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">grid_on</span>
-              <span>AlphaSheet Studio</span>
-              <span className="font-data-mono text-[9px] px-1 py-0.2 rounded bg-white/20 ml-0.5">NATIVE</span>
-            </button>
-            <button
-              onClick={() => handleViewModeChange('directory')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded text-label-sm font-medium transition-all ${
-                viewMode === 'directory'
-                  ? 'bg-surface-container-lowest text-primary shadow-xs font-semibold'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">view_list</span>
-              <span>Directory Table</span>
-            </button>
-          </div>
-
-          {viewMode === 'directory' && (
-            <span className="font-data-mono text-[12px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant ml-2">
-              {pagination.total} Records
             </span>
           )}
         </div>
 
+        {/* View Switcher: AlphaSheet Studio vs Directory Table */}
+        <div className="flex items-center bg-surface-container p-0.5 rounded-lg border border-outline-variant/30">
+          <button
+            onClick={() => handleViewModeChange('alphasheet')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold transition-all ${
+              viewMode === 'alphasheet'
+                ? 'bg-surface-container-lowest text-primary shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">grid_on</span>
+            <span>AlphaSheet Studio</span>
+          </button>
+          <button
+            onClick={() => handleViewModeChange('directory')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${
+              viewMode === 'directory'
+                ? 'bg-surface-container-lowest text-primary shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">view_list</span>
+            <span>Directory List ({pagination.total})</span>
+          </button>
+        </div>
+      </div>
+
         {/* Filter Controls (Shown in Directory Table Mode) */}
         {viewMode === 'directory' && (
-          <div className="flex items-center gap-space-xs flex-wrap">
+          <div className="flex items-center gap-space-xs flex-wrap mb-4">
             <div className="relative">
               <span className="material-symbols-outlined absolute left-2.5 top-2 text-outline text-[16px]">search</span>
               <input
@@ -360,7 +354,6 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
             </button>
           </div>
         )}
-      </div>
 
       {/* Main Content View Switch */}
       {viewMode === 'alphasheet' ? (
