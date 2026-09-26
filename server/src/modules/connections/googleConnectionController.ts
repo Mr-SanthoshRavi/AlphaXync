@@ -199,7 +199,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response, next: NextFu
       clientId
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(
       GOOGLE_AUTH_SCOPES
-    )}&access_type=offline&prompt=consent&state=${state}`;
+    )}&access_type=offline&prompt=consent%20select_account&state=${state}`;
 
     logger.info('GOOGLE_OAUTH_STARTED', `Generated OAuth URL for institution ${institutionId} with redirect: ${redirectUri}`);
 
@@ -321,16 +321,25 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
       const normalizedEmail = email.toLowerCase().trim();
       let user = await User.findOne({ email: normalizedEmail });
 
-      // Auto-provision new Google users as ADMIN so ALL users have immediate access!
+      // Auto-provision new Google users as ADMIN of their own isolated Institution!
       if (!user) {
-        let institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-        if (!institution) {
-          institution = await Institution.create({
-            name: 'AlphaXync Campus',
-            code: 'ALPHA',
-            timezone: 'Asia/Kolkata'
-          });
+        const cleanName = name || normalizedEmail.split('@')[0];
+        const instName = `${cleanName}'s Campus`;
+        const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+        const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+        let instCode = `${codePrefix}_${randomHex}`;
+
+        while (await Institution.findOne({ code: instCode })) {
+          const newHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+          instCode = `${codePrefix}_${newHex}`;
         }
+
+        const institution = await Institution.create({
+          name: instName,
+          code: instCode,
+          timezone: 'Asia/Kolkata',
+          active: true
+        });
 
         const fallbackPassword = generateSecureToken(16);
         const salt = await bcrypt.genSalt(10);
@@ -338,7 +347,7 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
 
         user = await User.create({
           institutionId: institution._id,
-          name: name || normalizedEmail.split('@')[0],
+          name: cleanName,
           email: normalizedEmail,
           passwordHash,
           role: 'ADMIN',
@@ -347,7 +356,7 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
           requiresOtpOnFirstLogin: false
         });
 
-        logger.info('GOOGLE_LOGIN_AUTO_PROVISIONED', `Created new ADMIN account for ${normalizedEmail} via Google SSO`);
+        logger.info('GOOGLE_LOGIN_AUTO_PROVISIONED', `Created new isolated ADMIN account and Institution (${instCode}) for ${normalizedEmail} via Google SSO`);
       }
 
       // Check account status
@@ -383,16 +392,22 @@ export async function handleGoogleOAuthCallback(req: Request, res: Response, nex
         user.name = name;
       }
 
-      // Auto-heal missing institution
+      // Auto-heal missing institution (always create dedicated isolated institution, never steal another institution)
       let institution = null;
       if (user.institutionId && Types.ObjectId.isValid(user.institutionId)) {
         institution = await Institution.findById(user.institutionId);
       }
       if (!institution) {
-        institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-        if (institution) {
-          user.institutionId = institution._id as any;
-        }
+        const cleanName = user.name || user.email.split('@')[0];
+        const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+        const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+        institution = await Institution.create({
+          name: `${cleanName}'s Campus`,
+          code: `${codePrefix}_${randomHex}`,
+          timezone: 'Asia/Kolkata',
+          active: true
+        });
+        user.institutionId = institution._id as any;
       }
 
       // Auto-promote if no active admin in DB or role is ADMIN

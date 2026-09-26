@@ -62,21 +62,23 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       throw new AppError('INVALID_CREDENTIALS', 'Invalid email or password', 401);
     }
 
-    // Auto-heal missing institution if user has none or was migrated
+    // Auto-heal missing institution if user has none or was migrated (create isolated, never steal another institution)
     let institution = null;
     if (user.institutionId && Types.ObjectId.isValid(user.institutionId)) {
       institution = await Institution.findById(user.institutionId);
     }
     if (!institution) {
-      institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-      if (!institution) {
-        institution = await Institution.create({
-          name: 'AlphaXync Campus',
-          code: 'ALPHA',
-          timezone: 'Asia/Kolkata'
-        });
-      }
+      const cleanName = user.name || user.email.split('@')[0];
+      const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+      institution = await Institution.create({
+        name: `${cleanName}'s Campus`,
+        code: `${codePrefix}_${randomHex}`,
+        timezone: 'Asia/Kolkata',
+        active: true
+      });
       user.institutionId = institution._id as any;
+      await user.save().catch(() => {});
     }
 
     // Auto-promote if no active ADMIN exists in the database or if role was saved in lowercase
@@ -258,7 +260,17 @@ export async function verifyLoginOtp(req: Request, res: Response, next: NextFunc
       institution = await Institution.findById(user.institutionId);
     }
     if (!institution) {
-      institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
+      const cleanName = user.name || user.email.split('@')[0];
+      const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+      institution = await Institution.create({
+        name: `${cleanName}'s Campus`,
+        code: `${codePrefix}_${randomHex}`,
+        timezone: 'Asia/Kolkata',
+        active: true
+      });
+      user.institutionId = institution._id as any;
+      await user.save().catch(() => {});
     }
 
     const instIdStr = (user.institutionId ? user.institutionId.toString() : (institution ? institution._id.toString() : ''));
@@ -338,11 +350,17 @@ export async function getCurrentUser(req: Request, res: Response, next: NextFunc
       institution = await Institution.findById(req.user.institutionId);
     }
     if (!institution) {
-      institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-      if (institution) {
-        user.institutionId = institution._id as any;
-        await user.save().catch(() => {});
-      }
+      const cleanName = user.name || user.email.split('@')[0];
+      const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+      institution = await Institution.create({
+        name: `${cleanName}'s Campus`,
+        code: `${codePrefix}_${randomHex}`,
+        timezone: 'Asia/Kolkata',
+        active: true
+      });
+      user.institutionId = institution._id as any;
+      await user.save().catch(() => {});
     }
 
     return res.status(200).json({
@@ -385,6 +403,15 @@ export async function sendSetupOtp(req: Request, res: Response, next: NextFuncti
       throw new AppError(
         'EMAIL_EXISTS',
         'An account with this email address already exists. Please go to Login or use another email.',
+        409
+      );
+    }
+
+    const existingInst = await Institution.findOne({ code: body.institutionCode.toUpperCase() });
+    if (existingInst) {
+      throw new AppError(
+        'CODE_EXISTS',
+        `Institution code "${body.institutionCode.toUpperCase()}" is already registered. Please choose a unique institution code.`,
         409
       );
     }
@@ -463,11 +490,18 @@ export async function verifySetupOtp(req: Request, res: Response, next: NextFunc
     if (!institution) {
       institution = await Institution.create({
         name: meta.institutionName,
-        code: meta.institutionCode
+        code: meta.institutionCode,
+        timezone: 'Asia/Kolkata',
+        active: true
       });
-    } else if (meta.institutionName && meta.institutionName !== institution.name) {
-      institution.name = meta.institutionName;
-      await institution.save();
+    } else {
+      const uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      institution = await Institution.create({
+        name: meta.institutionName,
+        code: `${meta.institutionCode}_${uniqueSuffix}`,
+        timezone: 'Asia/Kolkata',
+        active: true
+      });
     }
 
     const adminUser = await User.create({
@@ -576,13 +610,21 @@ export async function initialSetup(req: Request, res: Response, next: NextFuncti
       throw new AppError('EMAIL_EXISTS', 'An account with this email address already exists. Please log in.', 409);
     }
 
-    let institution = await Institution.findOne({ code: body.institutionCode });
-    if (!institution) {
-      institution = await Institution.create({
-        name: body.institutionName,
-        code: body.institutionCode
-      });
+    const existingInst = await Institution.findOne({ code: body.institutionCode.toUpperCase() });
+    if (existingInst) {
+      throw new AppError(
+        'CODE_EXISTS',
+        `Institution code "${body.institutionCode.toUpperCase()}" is already registered. Please choose a unique code.`,
+        409
+      );
     }
+
+    const institution = await Institution.create({
+      name: body.institutionName,
+      code: body.institutionCode.toUpperCase(),
+      timezone: 'Asia/Kolkata',
+      active: true
+    });
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(body.password, salt);

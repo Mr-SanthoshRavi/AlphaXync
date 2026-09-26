@@ -156,8 +156,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Logout error:', err);
     } finally {
+      setStoredToken(null);
+      try {
+        localStorage.removeItem('alphaxync_jwt_token');
+        localStorage.removeItem('alphasheet_active_mode');
+        localStorage.removeItem('alphasheet_mode_locked');
+        localStorage.removeItem('alphasheet_custom_name');
+        localStorage.removeItem('alphasheet_presets');
+        localStorage.removeItem('campusflow_students_view');
+      } catch {}
       setUser(null);
       setInstitution(null);
+      window.dispatchEvent(new CustomEvent('campusflow:auth-logout'));
       // Recheck setup status in case needed
       await checkSetupStatus();
     }

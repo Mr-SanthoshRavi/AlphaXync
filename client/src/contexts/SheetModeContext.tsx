@@ -93,8 +93,21 @@ export const SheetModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
 
+    const handleLogout = () => {
+      setMode('native');
+      setIsLocked(true);
+      setSheetName('Student Roster 2026');
+      setGoogleConnected(false);
+      setGoogleSheetTitle('Google Sheets');
+      setCounts({ native: 0, google: 0 });
+    };
+
     window.addEventListener('alphasheet:mode-changed', handleModeEvent);
-    return () => window.removeEventListener('alphasheet:mode-changed', handleModeEvent);
+    window.addEventListener('campusflow:auth-logout', handleLogout);
+    return () => {
+      window.removeEventListener('alphasheet:mode-changed', handleModeEvent);
+      window.removeEventListener('campusflow:auth-logout', handleLogout);
+    };
   }, [refreshCounts]);
 
   const switchMode = (newMode: SheetMode, force: boolean = false): boolean => {

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { Institution } from '../../models/Institution';
 import { User } from '../../models/User';
+import { DataConnection } from '../../models/DataConnection';
 import { env, isMockMode } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 
@@ -17,16 +18,14 @@ export async function getSettings(req: Request, res: Response, next: NextFunctio
     let institution = institutionId ? await Institution.findById(institutionId) : null;
 
     if (!institution) {
-      institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-      if (institution && req.user?.userId) {
-        await User.findByIdAndUpdate(req.user.userId, { institutionId: institution._id });
-      }
-    }
-
-    if (!institution) {
+      const cleanName = req.user?.email ? req.user.email.split('@')[0] : 'Campus';
+      const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
       institution = await Institution.create({
-        name: 'SRIDEVI ARTS AND SCIENCE COLLEGE',
-        code: 'SRIDEVI'
+        name: `${cleanName}'s Campus`,
+        code: `${codePrefix}_${randomHex}`,
+        timezone: 'Asia/Kolkata',
+        active: true
       });
       if (req.user?.userId) {
         await User.findByIdAndUpdate(req.user.userId, { institutionId: institution._id });
@@ -81,11 +80,25 @@ export async function getSettings(req: Request, res: Response, next: NextFunctio
             phoneNumberMasked: 'WhatsApp Web Session',
             status: waStatus
           },
-          googleSheets: {
-            connected: isMockMode() || !!process.env.GOOGLE_SHEETS_ACCESS_TOKEN,
-            status: isMockMode() ? 'Mock Sandbox Mode' : (process.env.GOOGLE_SHEETS_ACCESS_TOKEN ? 'Connected ✓' : 'OAuth Connection Required'),
-            source: 'Students_Master'
-          },
+          googleSheets: await (async () => {
+            const gConn = await DataConnection.findOne({ institutionId: institution._id, provider: 'google_sheets' });
+            const isConn = isMockMode() || (gConn && gConn.status === 'CONNECTED');
+            let statusText = 'OAuth Connection Required';
+            if (isMockMode()) {
+              statusText = 'Mock Sandbox Mode';
+            } else if (gConn?.status === 'CONNECTED') {
+              statusText = `Connected (${gConn.accountReference || 'Google Workspace'}) ✓`;
+            } else if (gConn?.status === 'ERROR') {
+              statusText = `Sync Error: ${gConn.syncStatus || 'Please reconnect'}`;
+            } else if (process.env.GOOGLE_SHEETS_ACCESS_TOKEN) {
+              statusText = 'Connected via Env Token ✓';
+            }
+            return {
+              connected: isConn,
+              status: statusText,
+              source: gConn?.sheetReference || 'Students_Master'
+            };
+          })(),
           ai: {
             enabled: env.AI_ENABLED,
             status: env.AI_ENABLED ? 'Active' : 'Disabled (Optional)'
@@ -107,17 +120,14 @@ export async function updateInstitution(req: Request, res: Response, next: NextF
     let institution = institutionId ? await Institution.findById(institutionId) : null;
 
     if (!institution) {
-      institution = (await Institution.findOne({ active: true })) || (await Institution.findOne());
-      if (institution && req.user?.userId) {
-        await User.findByIdAndUpdate(req.user.userId, { institutionId: institution._id });
-      }
-    }
-
-    if (!institution) {
+      const cleanName = req.user?.email ? req.user.email.split('@')[0] : 'Campus';
+      const codePrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6) || 'CAMPUS';
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
       institution = await Institution.create({
-        name: name || 'SRIDEVI ARTS AND SCIENCE COLLEGE',
-        code: 'SRIDEVI',
-        timezone: timezone || 'Asia/Kolkata'
+        name: name || `${cleanName}'s Campus`,
+        code: `${codePrefix}_${randomHex}`,
+        timezone: timezone || 'Asia/Kolkata',
+        active: true
       });
       if (req.user?.userId) {
         await User.findByIdAndUpdate(req.user.userId, { institutionId: institution._id });

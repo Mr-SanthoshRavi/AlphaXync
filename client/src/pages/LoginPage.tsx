@@ -22,6 +22,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
   // Google SSO State
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Login Method Switcher: 'GOOGLE' (Google SSO) vs 'NATIVE' (Email/Password)
+  const [loginMethod, setLoginMethod] = useState<'GOOGLE' | 'NATIVE'>('GOOGLE');
+
+  const switchLoginMethod = (method: 'GOOGLE' | 'NATIVE') => {
+    setLoginMethod(method);
+    setError(null);
+  };
+
   // First-Time Login OTP State
   const [otpRequired, setOtpRequired] = useState(false);
   const [otp, setOtp] = useState('');
@@ -49,6 +57,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
       const customMsg = params.get('message');
 
       if (urlError) {
+        setLoginMethod('GOOGLE');
         if (urlError === 'ACCESS_DENIED_UNREGISTERED' || urlError === 'UNAUTHORIZED_GOOGLE_ACCOUNT') {
           setError(
             `Access Denied: The Google account "${errEmail || 'selected'}" is not registered in AlphaXync. ` +
@@ -161,7 +170,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
     setError(null);
 
     const cleanEmail = email.trim();
-    if (cleanEmail && password) {
+    if (loginMethod === 'NATIVE' && cleanEmail && password) {
       await performLogin(cleanEmail, password, token);
     }
   };
@@ -574,171 +583,243 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSetup }) => {
               </div>
             )}
 
-            {/* Normal Login Form */}
+            {/* Normal Login Flow with Clean Method Switcher */}
             {!otpRequired ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Work Email Address
-                  </label>
-                  <div className="relative flex items-center">
-                    <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">mail</span>
-                    <input
-                      type="email"
-                      required
-                      autoComplete="off"
-                      placeholder="Enter your work email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowForgotPassword(true);
-                        setForgotEmail(email || '');
-                        setForgotError(null);
-                        setForgotSuccess(null);
-                        setForgotStep('EMAIL');
-                      }}
-                      className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer border-0 outline-none focus:outline-none bg-transparent"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                  <div className="relative flex items-center">
-                    <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">lock</span>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      autoComplete="current-password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full h-11 pl-10 pr-10 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((p) => !p)}
-                      className="absolute right-2.5 text-slate-400 hover:text-slate-700 p-1.5 border-0 bg-transparent flex items-center justify-center cursor-pointer outline-none focus:outline-none focus:ring-0"
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      <span className="material-symbols-outlined text-[19px]">
-                        {showPassword ? 'visibility_off' : 'visibility'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Security Verification: Google reCAPTCHA v2 (Visible immediately before login) */}
-                <div className="pt-2 pb-1 animate-fade-in flex flex-col items-center">
-                  <div className="w-full flex items-center justify-between mb-1.5 px-1">
-                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
-                      Security Verification
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
-                  </div>
-                  <GoogleRecaptcha
-                    ref={recaptchaRef}
-                    onVerify={handleCaptchaVerify}
-                    onExpire={() => setCaptchaToken(null)}
-                  />
-                  {!captchaToken && (
-                    <p className="text-[11px] text-slate-500 mt-1 text-center">
-                      Tick the "I'm not a robot" box above to enable sign-in
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || !captchaToken}
-                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-0 outline-none mt-2"
-                >
-                  {loading ? (
-                    <>
-                      <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                      <span>Signing in...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>{!captchaToken ? 'Check reCAPTCHA to Sign In' : 'Sign In to Console'}</span>
-                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Divider */}
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-200"></div>
-                  </div>
-                  <div className="relative flex justify-center text-[11px] uppercase">
-                    <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">
-                      or continue with
-                    </span>
-                  </div>
-                </div>
-
-                {/* Direct Google SSO Button */}
-                <div className="space-y-1.5">
+              <div className="space-y-4">
+                {/* Method Switcher Tabs */}
+                <div className="p-1 bg-slate-100 rounded-2xl flex items-center gap-1 border border-slate-200/80 mb-4">
                   <button
                     type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={googleLoading}
-                    className="w-full h-12 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-slate-700 font-semibold text-sm rounded-xl shadow-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer outline-none focus:ring-4 focus:ring-slate-100 disabled:opacity-60"
+                    onClick={() => switchLoginMethod('GOOGLE')}
+                    className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer border-0 outline-none ${
+                      loginMethod === 'GOOGLE'
+                        ? 'bg-white text-slate-900 shadow-sm shadow-slate-200/80 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 bg-transparent font-medium'
+                    }`}
                   >
-                    {googleLoading ? (
-                      <>
-                        <span className="material-symbols-outlined text-[18px] animate-spin text-slate-500">progress_activity</span>
-                        <span className="text-slate-600 font-medium">Connecting to Google...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                          <path
-                            fill="#4285F4"
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          />
-                          <path
-                            fill="#34A853"
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          />
-                          <path
-                            fill="#FBBC05"
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                          />
-                          <path
-                            fill="#EA4335"
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                          />
-                        </svg>
-                        <span>Sign in with Google</span>
-                        {!captchaToken && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                            Captcha Required
-                          </span>
-                        )}
-                      </>
-                    )}
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Google Sign-In</span>
                   </button>
-                  {!captchaToken && (
-                    <p className="text-[11px] text-slate-500 text-center flex items-center justify-center gap-1">
-                      <span className="material-symbols-outlined text-[14px] text-amber-600">verified_user</span>
-                      <span>Tick "I'm not a robot" above before signing in with Google</span>
-                    </p>
-                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => switchLoginMethod('NATIVE')}
+                    className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer border-0 outline-none ${
+                      loginMethod === 'NATIVE'
+                        ? 'bg-white text-slate-900 shadow-sm shadow-slate-200/80 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 bg-transparent font-medium'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-blue-600">badge</span>
+                    <span>Email &amp; Password</span>
+                  </button>
                 </div>
-              </form>
+
+                {/* VIEW A: DEDICATED GOOGLE SIGN-IN */}
+                {loginMethod === 'GOOGLE' && (
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 text-center">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-2.5 text-blue-600">
+                        <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                      </div>
+                      <h3 className="font-semibold text-slate-900 text-sm">Google Workspace SSO</h3>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Sign in directly with your Google account. Independent institution admins and staff receive instant access with isolated workspace security.
+                      </p>
+                    </div>
+
+                    {/* Security Verification: Google reCAPTCHA v2 */}
+                    <div className="pt-1 pb-1 flex flex-col items-center">
+                      <div className="w-full flex items-center justify-between mb-1.5 px-1">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
+                          Security Verification
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
+                      </div>
+                      <GoogleRecaptcha
+                        ref={recaptchaRef}
+                        onVerify={handleCaptchaVerify}
+                        onExpire={() => setCaptchaToken(null)}
+                      />
+                      {!captchaToken && (
+                        <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                          Tick the "I'm not a robot" box above to enable Google Sign-In
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Prominent Google Sign-In Button */}
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={googleLoading || !captchaToken}
+                      className="w-full h-12 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-slate-800 font-semibold text-sm rounded-xl shadow-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer outline-none focus:ring-4 focus:ring-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {googleLoading ? (
+                        <>
+                          <span className="material-symbols-outlined text-[18px] animate-spin text-slate-500">progress_activity</span>
+                          <span className="text-slate-600 font-medium">Connecting to Google...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                            <path
+                              fill="#4285F4"
+                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                            />
+                            <path
+                              fill="#34A853"
+                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            />
+                            <path
+                              fill="#FBBC05"
+                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                            />
+                            <path
+                              fill="#EA4335"
+                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                            />
+                          </svg>
+                          <span>{!captchaToken ? 'Check reCAPTCHA to Sign In' : 'Continue with Google'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="pt-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => switchLoginMethod('NATIVE')}
+                        className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 font-medium transition-colors cursor-pointer border-0 outline-none bg-transparent"
+                      >
+                        <span>Need email &amp; password sign in?</span>
+                        <span className="font-semibold text-blue-600 underline">Switch to Native Login</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* VIEW B: DEDICATED NATIVE EMAIL & PASSWORD LOGIN */}
+                {loginMethod === 'NATIVE' && (
+                  <form onSubmit={handleSubmit} className="space-y-4 animate-fade-in">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Work Email Address
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">mail</span>
+                        <input
+                          type="email"
+                          required
+                          autoComplete="off"
+                          placeholder="Enter your work email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowForgotPassword(true);
+                            setForgotEmail(email || '');
+                            setForgotError(null);
+                            setForgotSuccess(null);
+                            setForgotStep('EMAIL');
+                          }}
+                          className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer border-0 outline-none focus:outline-none bg-transparent"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <div className="relative flex items-center">
+                        <span className="material-symbols-outlined absolute left-3.5 text-slate-400 text-[18px]">lock</span>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          autoComplete="current-password"
+                          placeholder="Enter your password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full h-11 pl-10 pr-10 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((p) => !p)}
+                          className="absolute right-2.5 text-slate-400 hover:text-slate-700 p-1.5 border-0 bg-transparent flex items-center justify-center cursor-pointer outline-none focus:outline-none focus:ring-0"
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          <span className="material-symbols-outlined text-[19px]">
+                            {showPassword ? 'visibility_off' : 'visibility'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Security Verification: Google reCAPTCHA v2 */}
+                    <div className="pt-1 pb-1 animate-fade-in flex flex-col items-center">
+                      <div className="w-full flex items-center justify-between mb-1.5 px-1">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-blue-600">verified_user</span>
+                          Security Verification
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">Google reCAPTCHA</span>
+                      </div>
+                      <GoogleRecaptcha
+                        ref={recaptchaRef}
+                        onVerify={handleCaptchaVerify}
+                        onExpire={() => setCaptchaToken(null)}
+                      />
+                      {!captchaToken && (
+                        <p className="text-[11px] text-slate-500 mt-1 text-center">
+                          Tick the "I'm not a robot" box above to enable sign-in
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !captchaToken}
+                      className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-0 outline-none mt-2"
+                    >
+                      {loading ? (
+                        <>
+                          <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                          <span>Signing in...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{!captchaToken ? 'Check reCAPTCHA to Sign In' : 'Sign In to Console'}</span>
+                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="pt-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => switchLoginMethod('GOOGLE')}
+                        className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 font-medium transition-colors cursor-pointer border-0 outline-none bg-transparent"
+                      >
+                        <span>Have a Google Workspace account?</span>
+                        <span className="font-semibold text-blue-600 underline">Switch to Google Sign-In</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             ) : (
               /* First-Time Staff OTP Verification Form */
               <form onSubmit={handleVerifyOtp} className="space-y-5 animate-fade-in">
