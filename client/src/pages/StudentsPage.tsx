@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { ReceiptModal, type ReceiptData } from '../components/ReceiptModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useSheetMode } from '../contexts/SheetModeContext';
 import { AlphaSheetStudio } from '../components/sheet/AlphaSheetStudio';
 
 interface StudentsPageProps {
@@ -11,6 +12,7 @@ interface StudentsPageProps {
 
 export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
   const { institution } = useAuth();
+  const { mode: activeSheetMode, isLocked, toggleLock, sheetName, googleSheetTitle } = useSheetMode();
   const [students, setStudents] = useState<any[]>([]);
   const [pagination, setPagination] = useState<{ total: number; page: number; limit: number; pages: number }>({
     total: 0,
@@ -268,9 +270,58 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
     <div className="flex flex-col w-full pb-10">
       {/* Title & View Switcher */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-outline-variant/20 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-[22px]">table_chart</span>
-          <h1 className="text-base font-bold text-on-surface tracking-tight">Institutional Student Rosters</h1>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[22px]">table_chart</span>
+            <h1 className="text-base font-bold text-on-surface tracking-tight">Institutional Student Rosters</h1>
+          </div>
+
+          {/* Active Sheet Mode Badge */}
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+              activeSheetMode === 'native'
+                ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                : 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/40 ring-1 ring-blue-500/20'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                activeSheetMode === 'native' ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'
+              }`}
+            />
+            <span className="font-bold">{activeSheetMode === 'native' ? 'Native AlphaSheet' : 'Google Sheets'}</span>
+            <span className="opacity-40">|</span>
+            <span className="text-[11px] font-normal truncate max-w-[130px]">
+              {activeSheetMode === 'native' ? sheetName : googleSheetTitle || 'Live Mirror'}
+            </span>
+          </div>
+
+          {/* Interactive Sheet Lock Feature Button */}
+          <button
+            type="button"
+            onClick={toggleLock}
+            className={`flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border transition-all cursor-pointer shadow-xs hover:scale-102 ${
+              isLocked
+                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+            }`}
+            title={isLocked ? "Sheet is LOCKED for safety (Single-engine protection active). Click to UNLOCK" : "Sheet is UNLOCKED. Click to LOCK"}
+          >
+            <span className="material-symbols-outlined text-[15px]">
+              {isLocked ? 'lock' : 'lock_open'}
+            </span>
+            <span>{isLocked ? 'Sheet Locked' : 'Sheet Unlocked'}</span>
+            <span
+              className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-mono font-bold ${
+                isLocked
+                  ? 'bg-amber-500/30 text-amber-900 dark:text-amber-200'
+                  : 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+              }`}
+            >
+              {isLocked ? 'PROTECTED' : 'EDITABLE'}
+            </span>
+          </button>
+
           {cashierMode && (
             <span className="font-mono text-[10px] bg-secondary text-on-secondary px-2 py-0.5 rounded font-semibold ml-1">
               CASHIER DESK
@@ -304,6 +355,25 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
           </button>
         </div>
       </div>
+
+      {/* Safety Lock Info Bar */}
+      {isLocked && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px] text-amber-600">verified_user</span>
+            <span>
+              <strong>Sheet Safety Lock Active:</strong> {activeSheetMode === 'native' ? 'Native AlphaSheet' : 'Google Sheets'} is locked as your active ledger. Cross-engine data mixing and accidental changes are prevented.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleLock}
+            className="text-[11px] font-bold underline hover:text-amber-900 dark:hover:text-amber-100 cursor-pointer"
+          >
+            Click to Unlock
+          </button>
+        </div>
+      )}
 
         {/* Filter Controls (Shown in Directory Table Mode) */}
         {viewMode === 'directory' && (
@@ -619,6 +689,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ cashierMode }) => {
                 {/* Fees Tab */}
                 {activeDrawerTab === 'fees' && (
                   <div className="space-y-3">
+                    {/* Google Sheets Master Fee Lock Banner */}
+                    {(drawerData?.student?.sourceProvider === 'google_sheets' || selectedStudent?.sourceProvider === 'google_sheets') && (
+                      <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className="material-symbols-outlined text-[16px] text-blue-600">lock</span>
+                          <span>Google Sheets Source of Truth</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-on-surface-variant">
+                          Annual prescribed fees and fee balances for this student are mastered directly in your connected Google Spreadsheet. To update total fees or prescribed dues, please edit the row in Google Sheets.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="bg-surface-container-low p-space-md rounded">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-label-sm text-on-surface-variant">Annual Prescribed Fee:</span>

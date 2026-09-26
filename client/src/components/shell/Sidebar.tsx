@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { useSheetMode } from '../../contexts/SheetModeContext';
 
 export type NavTab = 'dashboard' | 'students' | 'fees' | 'automations' | 'messages' | 'sync' | 'settings';
 
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onToggleCollapse,
 }) => {
+  const { mode: activeSheetMode, isLocked } = useSheetMode();
   const [sheetStatus, setSheetStatus] = useState<{ isConnected: boolean; providerLabel: string }>({
     isConnected: false,
     providerLabel: 'Spreadsheet'
@@ -179,37 +181,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer / Status & Station */}
       <div className={`flex flex-col border-t border-outline-variant/20 ${collapsed ? 'p-2' : 'p-space-sm gap-2'} bg-surface-container-lowest`}>
-        {/* Source Connection Live / Offline Indicator */}
+        {/* Active Sheet Engine Indicator */}
         {!collapsed ? (
-          <div className="px-space-sm py-1.5 rounded-lg bg-surface-container-low border border-outline-variant/20 flex items-center justify-between animate-fade-in">
+          <div
+            className={`px-space-sm py-1.5 rounded-lg border flex items-center justify-between animate-fade-in ${
+              activeSheetMode === 'native'
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-blue-500/10 border-blue-500/30'
+            }`}
+          >
             <div className="flex items-center gap-space-xs min-w-0">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  sheetStatus.isConnected
-                    ? 'bg-secondary ring-2 ring-secondary/30'
-                    : 'bg-outline/40'
+                  activeSheetMode === 'native'
+                    ? 'bg-emerald-500 ring-2 ring-emerald-500/30 animate-pulse'
+                    : sheetStatus.isConnected
+                    ? 'bg-blue-500 ring-2 ring-blue-500/30 animate-pulse'
+                    : 'bg-blue-400'
                 } shrink-0`}
               ></span>
-              <span className="font-label-sm text-label-sm text-on-surface font-medium truncate">
-                {sheetStatus.providerLabel}
+              <span className="font-label-sm text-label-sm text-on-surface font-semibold truncate">
+                {activeSheetMode === 'native' ? 'Native Sheet' : 'Google Sheets'}
               </span>
             </div>
-            <span
-              className={`font-data-mono text-[10px] ${
-                sheetStatus.isConnected ? 'text-secondary font-bold' : 'text-on-surface-variant font-medium'
-              } uppercase tracking-wider shrink-0`}
-            >
-              {sheetStatus.isConnected ? 'LIVE' : 'NOT LINKED'}
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              {isLocked && <span className="material-symbols-outlined text-[12px] text-amber-500">lock</span>}
+              <span
+                className={`font-data-mono text-[10px] font-bold uppercase tracking-wider ${
+                  activeSheetMode === 'native'
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-blue-700 dark:text-blue-400'
+                }`}
+              >
+                {activeSheetMode === 'native' ? 'ACTIVE' : sheetStatus.isConnected ? 'LIVE' : 'READY'}
+              </span>
+            </div>
           </div>
         ) : (
           <div
             className="flex justify-center py-1.5"
-            title={`${sheetStatus.providerLabel}: ${sheetStatus.isConnected ? 'LIVE' : 'NOT LINKED'}`}
+            title={`${activeSheetMode === 'native' ? 'Native Sheet (ACTIVE)' : 'Google Sheets (' + (sheetStatus.isConnected ? 'LIVE' : 'READY') + ')'}${isLocked ? ' - LOCKED' : ''}`}
           >
             <span
               className={`w-2.5 h-2.5 rounded-full ${
-                sheetStatus.isConnected ? 'bg-secondary ring-2 ring-secondary/30' : 'bg-outline/40'
+                activeSheetMode === 'native'
+                  ? 'bg-emerald-500 ring-2 ring-emerald-500/30'
+                  : 'bg-blue-500 ring-2 ring-blue-500/30'
               }`}
             ></span>
           </div>

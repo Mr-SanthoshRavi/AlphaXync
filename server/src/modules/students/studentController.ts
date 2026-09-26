@@ -9,6 +9,7 @@ import { SyncConflict } from '../../models/SyncConflict';
 import { DataConnection } from '../../models/DataConnection';
 import { AppError } from '../../middleware/errorHandler';
 import { isMockMode } from '../../config/env';
+import { logger } from '../../utils/logger';
 import { normalizePhoneNumber, parseFlexibleDate } from '../sync/validationEngine';
 
 function getAcademicYear(): string {
@@ -445,27 +446,33 @@ export async function updateStudent(req: Request, res: Response, next: NextFunct
 
     let feeAccount = await FeeAccount.findOne({ institutionId, studentId: student._id });
     if (feeAccount) {
-      let feeChanged = false;
-      if (totalFee !== undefined) {
-        const newTotal = Math.max(0, Number(totalFee) || 0);
-        feeAccount.totalAmount = newTotal;
-        feeAccount.balance = Math.max(0, newTotal - feeAccount.paidAmount);
-        feeAccount.status = feeAccount.balance === 0 ? 'PAID' : feeAccount.paidAmount > 0 ? 'PARTIAL' : 'PENDING';
-        feeChanged = true;
-      }
-      if (dueDate !== undefined) {
-        const parsedDue = parseFlexibleDate(dueDate);
-        if (parsedDue) {
-          feeAccount.dueDate = parsedDue;
+      // RULE: Google Sheets is the Single Source of Truth for payment & financial numbers.
+      // For Google Sheets synced students, payment/fee amounts are strictly locked and can ONLY be updated in Google Sheets!
+      if (student.sourceProvider === 'google_sheets' && (totalFee !== undefined || dueDate !== undefined || fineAmount !== undefined)) {
+        logger.info('GSHEET_PAYMENT_EDIT_PREVENTED', `Payment numbers for student ${student.externalStudentId} are managed directly in Google Sheets (Source of Truth). Admin panel override skipped.`);
+      } else {
+        let feeChanged = false;
+        if (totalFee !== undefined) {
+          const newTotal = Math.max(0, Number(totalFee) || 0);
+          feeAccount.totalAmount = newTotal;
+          feeAccount.balance = Math.max(0, newTotal - feeAccount.paidAmount);
+          feeAccount.status = feeAccount.balance === 0 ? 'PAID' : feeAccount.paidAmount > 0 ? 'PARTIAL' : 'PENDING';
           feeChanged = true;
         }
-      }
-      if (fineAmount !== undefined) {
-        feeAccount.fineAmount = Number(fineAmount) || 0;
-        feeChanged = true;
-      }
-      if (feeChanged) {
-        await feeAccount.save();
+        if (dueDate !== undefined) {
+          const parsedDue = parseFlexibleDate(dueDate);
+          if (parsedDue) {
+            feeAccount.dueDate = parsedDue;
+            feeChanged = true;
+          }
+        }
+        if (fineAmount !== undefined) {
+          feeAccount.fineAmount = Number(fineAmount) || 0;
+          feeChanged = true;
+        }
+        if (feeChanged) {
+          await feeAccount.save();
+        }
       }
     }
 
@@ -595,7 +602,8 @@ export async function batchSaveStudents(req: Request, res: Response, next: NextF
             await student.save();
           }
 
-          if (item.totalFee !== undefined || item.dueDate !== undefined) {
+          // Only allow fee adjustments for Native Sheet records (Google Sheets is external single source of truth)
+          if ((item.totalFee !== undefined || item.dueDate !== undefined) && student.sourceProvider !== 'google_sheets') {
             const feeAccount = await FeeAccount.findOne({ institutionId, studentId: student._id });
             if (feeAccount) {
               let feeChanged = false;

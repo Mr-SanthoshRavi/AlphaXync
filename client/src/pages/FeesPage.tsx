@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { ReceiptModal, type ReceiptData } from '../components/ReceiptModal';
 import { FeeRulesModal } from '../components/FeeRulesModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useSheetMode } from '../contexts/SheetModeContext';
 
 interface FeesPageProps {
   cashierMode: boolean;
@@ -38,6 +39,7 @@ interface FeeRecord {
 
 export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
   const { institution } = useAuth();
+  const { mode: activeSheetMode } = useSheetMode();
   const [fees, setFees] = useState<FeeRecord[]>([]);
   const [pagination, setPagination] = useState<{ total: number; page: number; limit: number; pages: number }>({
     total: 0,
@@ -197,9 +199,11 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
   const fetchFees = async (page = 1) => {
     try {
       setLoading(true);
+      const targetProvider = activeSheetMode === 'native' ? 'native_sheet' : 'google_sheets';
       const res = await api.getFees({
         search: search.trim() || undefined,
         status: statusFilter || undefined,
+        sourceProvider: targetProvider,
         page,
         limit: 25,
       });
@@ -227,7 +231,7 @@ export const FeesPage: React.FC<FeesPageProps> = ({ cashierMode }) => {
     return () => {
       window.removeEventListener('campusflow:data-updated', onDataUpdated);
     };
-  }, [search, statusFilter, pagination.page]);
+  }, [search, statusFilter, pagination.page, activeSheetMode]);
 
   const openOfflineModalFor = (item?: FeeRecord) => {
     const target = item || fees[0] || null;

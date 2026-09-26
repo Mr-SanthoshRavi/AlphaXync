@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { useSheetMode } from '../contexts/SheetModeContext';
 
 interface DashboardPageProps {
   onNavigateTab: (tab: any) => void;
@@ -48,6 +49,7 @@ interface DashboardSummary {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) => {
+  const { mode: activeSheetMode, isLocked, sheetName, googleSheetTitle, counts } = useSheetMode();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +192,96 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               sync
             </span>
             <span>{syncing ? 'Syncing...' : 'Pull Sheet Sync'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Active Sheet Mode & Strict Isolation Banner */}
+      <div
+        className={`mb-6 p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all shadow-xs ${
+          activeSheetMode === 'native'
+            ? 'bg-gradient-to-r from-emerald-500/12 via-emerald-500/5 to-surface-container-low border-emerald-500/35'
+            : 'bg-gradient-to-r from-blue-500/12 via-blue-500/5 to-surface-container-low border-blue-500/35'
+        }`}
+      >
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div
+            className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+              activeSheetMode === 'native'
+                ? 'bg-emerald-600 text-white ring-4 ring-emerald-500/20'
+                : 'bg-blue-600 text-white ring-4 ring-blue-500/20'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[26px]">
+              {activeSheetMode === 'native' ? 'table_chart' : 'cloud_sync'}
+            </span>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="font-bold text-sm text-on-surface tracking-tight">
+                ACTIVE SHEET ENGINE: {activeSheetMode === 'native' ? 'Native AlphaSheet' : 'Google Sheets Live Mirror'}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border flex items-center gap-1 ${
+                  activeSheetMode === 'native'
+                    ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                    : 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/30'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    activeSheetMode === 'native' ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'
+                  }`}
+                />
+                {activeSheetMode === 'native' ? 'NATIVE ALPHA-MODE' : 'GOOGLE SHEETS MODE'}
+              </span>
+
+              {isLocked ? (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  <span className="material-symbols-outlined text-[12px]">lock</span>
+                  STRICT LOCK ACTIVE
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                  <span className="material-symbols-outlined text-[12px]">lock_open</span>
+                  UNLOCKED
+                </span>
+              )}
+            </div>
+
+            <div className="text-xs text-on-surface-variant flex items-center gap-2 flex-wrap">
+              <span>
+                Active Roster:{' '}
+                <strong className="text-on-surface font-semibold">
+                  {activeSheetMode === 'native' ? sheetName : googleSheetTitle || 'Google Spreadsheet'}
+                </strong>
+              </span>
+              <span className="opacity-40">•</span>
+              <span className="font-mono text-[11px] font-semibold text-primary">
+                {activeSheetMode === 'native'
+                  ? `${counts.native} Active Students (Database Primary)`
+                  : `${counts.google} Synced Students (GSheet Master SSOT)`}
+              </span>
+              <span className="opacity-40">•</span>
+              <span className="text-[11px] text-outline">Strict Single-Mode Protection (Zero Data Cross-Contamination)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+          <button
+            onClick={() => onNavigateTab('students')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 shadow-2xs hover:shadow-xs transition-all ${
+              activeSheetMode === 'native'
+                ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+                : 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/40 hover:bg-blue-500/25'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">
+              {activeSheetMode === 'native' ? 'grid_view' : 'table_view'}
+            </span>
+            <span>Open {activeSheetMode === 'native' ? 'AlphaSheet Roster' : 'GSheet Roster'}</span>
           </button>
         </div>
       </div>

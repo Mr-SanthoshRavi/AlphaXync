@@ -570,13 +570,19 @@ export async function evaluateCustomAutomation(automation: any): Promise<number>
   const inst = await Institution.findById(institutionId);
   const collegeName = inst?.name || 'Campus Administration';
 
-  // 1. Fetch eligible active students with a valid WhatsApp phone number
-  const allStudents = await Student.find({
+  // 1. Fetch eligible active students with a valid WhatsApp phone number (strictly isolating by sheet mode if specified)
+  const studentQuery: any = {
     institutionId,
     status: 'ACTIVE',
     communicationOptOut: { $ne: true },
     whatsappNumber: { $exists: true, $ne: '', $regex: /\d{10,14}/ }
-  });
+  };
+  if (automation.sourceProvider === 'google_sheets') {
+    studentQuery.sourceProvider = 'google_sheets';
+  } else if (automation.sourceProvider === 'native_sheet') {
+    studentQuery.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+  }
+  const allStudents = await Student.find(studentQuery);
 
   // 2. Filter by audience criteria if specified
   const criteria = automation.audience?.criteria || [];

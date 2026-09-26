@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SheetModeProvider } from './contexts/SheetModeContext';
 import { Sidebar, type NavTab } from './components/shell/Sidebar';
 import { Header } from './components/shell/Header';
 import { DashboardPage } from './pages/DashboardPage';
@@ -256,7 +257,9 @@ const AppShell: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppShell />
+      <SheetModeProvider>
+        <AppShell />
+      </SheetModeProvider>
     </AuthProvider>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../../lib/api';
+import { useSheetMode } from '../../contexts/SheetModeContext';
 
 export interface AlphaSheetStudioProps {
   onOpenStudentDrawer?: (student: any) => void;
@@ -64,41 +65,35 @@ const DEFAULT_PRESETS: PresetSettings = {
 export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   onOpenStudentDrawer
 }) => {
-  // Mode: STRICTLY isolated between Native Sheet and Google Sheets
-  const [activeMode, setActiveMode] = useState<'native' | 'google'>(() => {
-    try {
-      return (localStorage.getItem('alphasheet_active_mode') as any) || 'native';
-    } catch {
-      return 'native';
-    }
-  });
+  // Mode: STRICTLY isolated between Native Sheet and Google Sheets via shared SheetModeContext
+  const {
+    mode: activeMode,
+    isLocked,
+    sheetName,
+    switchMode,
+    toggleLock,
+    updateSheetName
+  } = useSheetMode();
 
   const handleModeSwitch = (mode: 'native' | 'google') => {
-    setActiveMode(mode);
+    if (isLocked) {
+      alert('Safety Lock is active! Only one sheet mode operates at a time. Please unlock the mode from the top navbar to switch sheet engines.');
+      return;
+    }
+    switchMode(mode, true);
     setSelectedIds(new Set());
-    try {
-      localStorage.setItem('alphasheet_active_mode', mode);
-    } catch {}
   };
 
-  // Customizable Native Sheet Name
-  const [sheetName, setSheetName] = useState(() => {
-    try {
-      return localStorage.getItem('alphasheet_custom_name') || 'Student Roster 2026';
-    } catch {
-      return 'Student Roster 2026';
-    }
-  });
   const [isEditingSheetName, setIsEditingSheetName] = useState(false);
   const [tempSheetName, setTempSheetName] = useState(sheetName);
 
+  useEffect(() => {
+    setTempSheetName(sheetName);
+  }, [sheetName]);
+
   const handleSaveSheetName = () => {
-    const trimmed = tempSheetName.trim() || 'Student Roster 2026';
-    setSheetName(trimmed);
+    updateSheetName(tempSheetName);
     setIsEditingSheetName(false);
-    try {
-      localStorage.setItem('alphasheet_custom_name', trimmed);
-    } catch {}
   };
 
   // Master data & State
@@ -241,6 +236,10 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   // Modify cell value
   const handleCellChange = (id: string, field: string, value: any) => {
     if (activeMode !== 'native') return; // Read-protected in Google Sheets live mirror mode
+    if (isLocked) {
+      alert('🔒 Sheet is currently LOCKED for safety. Click "Sheet Locked" above to unlock before editing cells.');
+      return;
+    }
 
     setRows((prev) =>
       prev.map((row) => {
@@ -431,38 +430,76 @@ export const AlphaSheetStudio: React.FC<AlphaSheetStudioProps> = ({
   return (
     <div className="flex flex-col w-full select-none pb-12">
       {/* 1. TOP SHEET MODE TABS: STRICT ZERO-MIXING ISOLATION */}
-      <div className="flex items-center gap-1 border-b border-outline-variant/30 px-1 pt-1 bg-surface-container-low/50 rounded-t-xl">
-        {/* Tab 1: Native Sheet (Customizable Name) */}
-        <button
-          onClick={() => handleModeSwitch('native')}
-          className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 ${
-            activeMode === 'native'
-              ? 'bg-surface-container-lowest text-primary border-primary shadow-xs font-bold'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px] text-primary">table_chart</span>
-          <span>{sheetName} (Native Sheet)</span>
-          <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
-            {counts.native}
-          </span>
-        </button>
+      <div className="flex items-center justify-between border-b border-outline-variant/30 px-2 pt-1 bg-surface-container-low/50 rounded-t-xl flex-wrap gap-2">
+        <div className="flex items-center gap-1">
+          {/* Tab 1: Native Sheet (Customizable Name) */}
+          <button
+            onClick={() => handleModeSwitch('native')}
+            title={isLocked && activeMode !== 'native' ? 'Safety Locked: Click Sheet Locked to unlock first' : 'Switch to Native AlphaSheet'}
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer ${
+              activeMode === 'native'
+                ? 'bg-surface-container-lowest text-primary border-primary shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px] text-primary">table_chart</span>
+            <span>{sheetName} (Native Sheet)</span>
+            <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+              {counts.native}
+            </span>
+            {isLocked && activeMode === 'native' && (
+              <span className="material-symbols-outlined text-[14px] text-amber-500" title="Locked Active Engine">lock</span>
+            )}
+          </button>
 
-        {/* Tab 2: Google Sheets (Live Mirror Mode) */}
-        <button
-          onClick={() => handleModeSwitch('google')}
-          className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 ${
-            activeMode === 'google'
-              ? 'bg-surface-container-lowest text-emerald-700 dark:text-emerald-400 border-emerald-600 shadow-xs font-bold'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px] text-emerald-600">cloud_sync</span>
-          <span>Google Sheets (Live Mirror)</span>
-          <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold">
-            {counts.google}
-          </span>
-        </button>
+          {/* Tab 2: Google Sheets (Live Mirror Mode) */}
+          <button
+            onClick={() => handleModeSwitch('google')}
+            title={isLocked && activeMode !== 'google' ? 'Safety Locked: Click Sheet Locked to unlock first' : 'Switch to Google Sheets Live Mirror'}
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer ${
+              activeMode === 'google'
+                ? 'bg-surface-container-lowest text-emerald-700 dark:text-emerald-400 border-emerald-600 shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px] text-emerald-600">cloud_sync</span>
+            <span>Google Sheets (Live Mirror)</span>
+            <span className="font-data-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold">
+              {counts.google}
+            </span>
+            {isLocked && activeMode === 'google' && (
+              <span className="material-symbols-outlined text-[14px] text-amber-500" title="Locked Active Engine">lock</span>
+            )}
+          </button>
+        </div>
+
+        {/* Tab Right: Sheet Safety Lock Toggle Button */}
+        <div className="flex items-center gap-2 pb-1.5 pr-1">
+          <button
+            type="button"
+            onClick={toggleLock}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer shadow-2xs hover:scale-102 ${
+              isLocked
+                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+            }`}
+            title={isLocked ? "Safety Lock is ACTIVE. Sheet mode and data are locked against accidental alteration. Click to UNLOCK" : "Safety Lock is OFF. Click to LOCK sheet"}
+          >
+            <span className="material-symbols-outlined text-[15px]">
+              {isLocked ? 'lock' : 'lock_open'}
+            </span>
+            <span>{isLocked ? 'Sheet Locked' : 'Sheet Unlocked'}</span>
+            <span
+              className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-mono font-bold ${
+                isLocked
+                  ? 'bg-amber-500/30 text-amber-900 dark:text-amber-200'
+                  : 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+              }`}
+            >
+              {isLocked ? 'PROTECTED' : 'EDITABLE'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* 2. MODE CONTEXT BANNER & TOOLBAR */}

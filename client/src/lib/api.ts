@@ -396,10 +396,11 @@ export const api = {
 
 
   // Fees & Payments
-  getFees: (params?: { search?: string; status?: string; page?: number; limit?: number }) => {
+  getFees: (params?: { search?: string; status?: string; sourceProvider?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
     if (params?.search) query.set('search', params.search);
     if (params?.status && params.status !== 'ALL') query.set('status', params.status);
+    if (params?.sourceProvider) query.set('sourceProvider', params.sourceProvider);
     if (params?.page) query.set('page', params.page.toString());
     if (params?.limit) query.set('limit', params.limit.toString());
     return request<{ fees: any[]; pagination: { total: number; page: number; limit: number; pages: number } }>(
@@ -443,12 +444,19 @@ export const api = {
 
   // Automations
   getAutomations: () => request<any[]>('/automations'),
-  getAutomationVariables: () => request<{ variables: Array<{ tag: string; label: string; sample: string; category: string }>; totalDiscovered: number; googleSheetColumns: string[] }>('/automations/variables'),
-  getAutomationFilterOptions: () =>
-    request<{ columns: Array<{ key: string; label: string; values: string[] }>; totalActiveContacts: number }>(
-      '/automations/filter-options'
+  getAutomationVariables: (sourceProvider?: string) =>
+    request<{
+      variables: Array<{ tag: string; label: string; sample: string; category: string }>;
+      totalDiscovered: number;
+      mode: string;
+      sheetColumns?: string[];
+      googleSheetColumns?: string[];
+    }>(`/automations/variables${sourceProvider ? `?sourceProvider=${encodeURIComponent(sourceProvider)}` : ''}`),
+  getAutomationFilterOptions: (sourceProvider?: string) =>
+    request<{ columns: Array<{ key: string; label: string; values: string[] }>; totalActiveContacts: number; mode: string }>(
+      `/automations/filter-options${sourceProvider ? `?sourceProvider=${encodeURIComponent(sourceProvider)}` : ''}`
     ),
-  getAutomationMatchingCount: (data: { target: string; criteria?: any[]; feeStatus?: string }) =>
+  getAutomationMatchingCount: (data: { target: string; criteria?: any[]; feeStatus?: string; sourceProvider?: string }) =>
     request<{ matchingCount: number; totalEligible: number; sampleRecipients: string[] }>(
       '/automations/matching-count',
       { method: 'POST', body: JSON.stringify(data) }
@@ -467,6 +475,8 @@ export const api = {
     name: string;
     description?: string;
     template: string;
+    mediaUrl?: string | null;
+    sourceProvider?: string;
     audience?: any;
     schedule?: any;
     enabled?: boolean;

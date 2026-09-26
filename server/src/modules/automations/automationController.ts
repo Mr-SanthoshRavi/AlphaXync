@@ -22,6 +22,7 @@ const updateAutomationSchema = z.object({
   description: z.string().optional(),
   template: z.string().optional(),
   mediaUrl: z.string().optional().nullable(),
+  sourceProvider: z.enum(['google_sheets', 'native_sheet', 'all']).optional(),
   audience: z.any().optional(),
   conditions: z.any().optional(),
   schedule: z.any().optional(),
@@ -34,6 +35,7 @@ const createCustomAutomationSchema = z.object({
   description: z.string().optional(),
   template: z.string().min(3, 'Template message must be at least 3 characters'),
   mediaUrl: z.string().optional().nullable(),
+  sourceProvider: z.enum(['google_sheets', 'native_sheet', 'all']).default('all'),
   audience: z.object({
     target: z.string().default('ALL'),
     departments: z.array(z.string()).optional(),
@@ -443,35 +445,53 @@ export async function updateAutomation(req: Request, res: Response, next: NextFu
 export async function getAutomationVariables(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
+    const sourceProvider = req.query.sourceProvider ? String(req.query.sourceProvider) : undefined;
+
+    // Strict isolation: filter students by sheet mode to prevent variable cross-contamination
+    const studentFilter: any = { institutionId, status: 'ACTIVE' };
+    const isGoogle = sourceProvider === 'google_sheets';
+    const isNative = sourceProvider === 'native_sheet' || sourceProvider === 'native';
+
+    if (isGoogle) {
+      studentFilter.sourceProvider = 'google_sheets';
+    } else if (isNative) {
+      studentFilter.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+    }
 
     // 1. Fetch institution for college name
     const inst = await Institution.findById(institutionId);
     const collegeName = inst?.name || 'Campus Administration';
 
-    // 2. Fetch sample student and sample fee account
-    const sampleStudent = await Student.findOne({ institutionId, status: 'ACTIVE' }).lean();
+    // 2. Fetch sample student and sample fee account strictly from the selected sheet mode
+    let sampleStudent = await Student.findOne(studentFilter).lean();
+    if (!sampleStudent && (isGoogle || isNative)) {
+      // Graceful fallback to any student if active mode has no records yet
+      sampleStudent = await Student.findOne({ institutionId }).lean();
+    }
     const sampleFee = sampleStudent ? await FeeAccount.findOne({ institutionId, studentId: sampleStudent._id }).lean() : null;
 
-    // 3. Discover all unique raw column names across students in database
-    const students = await Student.find({ institutionId, status: 'ACTIVE' }).limit(50).select('rawSourceData').lean();
+    // 3. Discover all unique raw column names across students in the selected sheet mode
+    const students = await Student.find(studentFilter).limit(80).select('rawSourceData').lean();
     const discoveredSheetCols = new Set<string>();
 
     for (const s of students) {
-      if (s.rawSourceData) {
+      if (s.rawSourceData && typeof s.rawSourceData === 'object') {
         for (const k of Object.keys(s.rawSourceData)) {
-          if (k && k.trim()) {
+          if (k && k.trim() && !k.startsWith('_')) {
             discoveredSheetCols.add(k.trim());
           }
         }
       }
     }
 
-    // 4. Build rich structured variables palette
+    const sheetCategory = isNative ? 'NATIVE_SHEET' : isGoogle ? 'GOOGLE_SHEET' : 'CUSTOM_SHEET';
+
+    // 4. Build rich structured variables palette with reasonable, clean variable tags
     const variables: Array<{
       tag: string;
       label: string;
       sample: string;
-      category: 'STUDENT' | 'FINANCIAL' | 'CUSTOM_SHEET' | 'SYSTEM';
+      category: 'STUDENT' | 'FINANCIAL' | 'CUSTOM_SHEET' | 'NATIVE_SHEET' | 'GOOGLE_SHEET' | 'SYSTEM';
     }> = [
       // Standard Student details
       {
@@ -514,6 +534,12 @@ export async function getAutomationVariables(req: Request, res: Response, next: 
         tag: '{{year}}',
         label: 'Academic Year',
         sample: sampleStudent?.year ? `${sampleStudent.year} Year` : 'II Year',
+        category: 'STUDENT'
+      },
+      {
+        tag: '{{section}}',
+        label: 'Class Section',
+        sample: sampleStudent?.section || 'A',
         category: 'STUDENT'
       },
       {
@@ -573,16 +599,17 @@ export async function getAutomationVariables(req: Request, res: Response, next: 
     // Standard normalized tags already added
     const standardNormTags = new Set(variables.map(v => v.tag.replace(/[{}]/g, '').toLowerCase().replace(/[\s_\-]+/g, '')));
 
-    // Add every unique raw column discovered in the Google Sheet!
+    // Add unique discovered columns from the active sheet mode with clean reasonable tags
     for (const sheetCol of discoveredSheetCols) {
       const normCol = sheetCol.toLowerCase().replace(/[\s_\-]+/g, '');
       if (!standardNormTags.has(normCol)) {
         const sampleVal = sampleStudent?.rawSourceData?.[sheetCol] || 'Sample Data';
+        const cleanTag = sheetCol.replace(/[{}]/g, '').trim();
         variables.push({
-          tag: `{{${sheetCol}}}`,
+          tag: `{{${cleanTag}}}`,
           label: sheetCol,
           sample: String(sampleVal),
-          category: 'CUSTOM_SHEET'
+          category: sheetCategory as any
         });
       }
     }
@@ -592,7 +619,9 @@ export async function getAutomationVariables(req: Request, res: Response, next: 
       data: {
         variables,
         totalDiscovered: variables.length,
-        googleSheetColumns: Array.from(discoveredSheetCols)
+        mode: isNative ? 'native_sheet' : isGoogle ? 'google_sheets' : 'all',
+        sheetColumns: Array.from(discoveredSheetCols),
+        googleSheetColumns: Array.from(discoveredSheetCols) // for backwards compatibility
       }
     });
   } catch (error) {
@@ -603,9 +632,17 @@ export async function getAutomationVariables(req: Request, res: Response, next: 
 export async function getFilterOptions(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
+    const sourceProvider = req.query.sourceProvider ? String(req.query.sourceProvider) : undefined;
 
-    // Fetch active students to discover all Google Sheet columns and distinct values
-    const students = await Student.find({ institutionId, status: 'ACTIVE' })
+    const studentFilter: any = { institutionId, status: 'ACTIVE' };
+    if (sourceProvider === 'google_sheets') {
+      studentFilter.sourceProvider = 'google_sheets';
+    } else if (sourceProvider === 'native_sheet' || sourceProvider === 'native') {
+      studentFilter.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+    }
+
+    // Fetch active students strictly from the selected sheet mode
+    const students = await Student.find(studentFilter)
       .select('course department year section quota rawSourceData name externalStudentId')
       .lean();
 
@@ -664,7 +701,8 @@ export async function getFilterOptions(req: Request, res: Response, next: NextFu
       success: true,
       data: {
         columns,
-        totalActiveContacts: students.length
+        totalActiveContacts: students.length,
+        mode: sourceProvider || 'all'
       }
     });
   } catch (error) {
@@ -675,14 +713,22 @@ export async function getFilterOptions(req: Request, res: Response, next: NextFu
 export async function getMatchingRecipientCount(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
-    const { target = 'ALL', criteria = [], feeStatus = 'ALL' } = req.body;
+    const { target = 'ALL', criteria = [], feeStatus = 'ALL', sourceProvider } = req.body;
 
-    const allStudents = await Student.find({
+    const studentFilter: any = {
       institutionId,
       status: 'ACTIVE',
       communicationOptOut: { $ne: true },
       whatsappNumber: { $exists: true, $ne: '', $regex: /\d{10,14}/ }
-    }).lean();
+    };
+
+    if (sourceProvider === 'google_sheets') {
+      studentFilter.sourceProvider = 'google_sheets';
+    } else if (sourceProvider === 'native_sheet' || sourceProvider === 'native') {
+      studentFilter.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+    }
+
+    const allStudents = await Student.find(studentFilter).lean();
 
     let matching = allStudents;
 
@@ -772,6 +818,7 @@ export async function createCustomAutomation(req: Request, res: Response, next: 
       description: data.description || '',
       template: data.template,
       mediaUrl: data.mediaUrl || null,
+      sourceProvider: data.sourceProvider || 'all',
       audience: data.audience || { target: 'ALL' },
       schedule: data.schedule || { triggerType: 'MANUAL' },
       enabled: data.enabled ?? true,
@@ -825,6 +872,7 @@ export async function updateCustomAutomation(req: Request, res: Response, next: 
     if (updates.description !== undefined) automation.description = updates.description;
     if (updates.template !== undefined) automation.template = updates.template;
     if (updates.mediaUrl !== undefined) automation.mediaUrl = updates.mediaUrl || undefined;
+    if (updates.sourceProvider !== undefined) automation.sourceProvider = updates.sourceProvider;
     if (updates.audience !== undefined) automation.audience = updates.audience;
     if (updates.schedule !== undefined) automation.schedule = updates.schedule;
     if (updates.conditions !== undefined) automation.conditions = updates.conditions;

@@ -5,6 +5,7 @@ export type AutomationType = 'GREETING' | 'FEE' | 'ANNOUNCEMENT' | 'COMPLAINT' |
 export interface IAutomation extends Document {
   institutionId: Types.ObjectId;
   type: AutomationType;
+  sourceProvider?: 'google_sheets' | 'native_sheet' | 'all';
   isSystem?: boolean;
   name?: string;
   description?: string;
@@ -56,6 +57,7 @@ export const AutomationSchema = new Schema<IAutomation>(
       enum: ['GREETING', 'FEE', 'ANNOUNCEMENT', 'COMPLAINT', 'STAFF', 'CUSTOM'], 
       required: true 
     },
+    sourceProvider: { type: String, enum: ['google_sheets', 'native_sheet', 'all'], default: 'all' },
     isSystem: { type: Boolean, default: false },
     name: { type: String },
     description: { type: String },

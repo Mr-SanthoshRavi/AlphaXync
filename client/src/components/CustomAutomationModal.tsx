@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../lib/api';
+import { useSheetMode } from '../contexts/SheetModeContext';
 
 export interface VariableItem {
   tag: string;
@@ -33,6 +34,8 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
   onSaved,
   initialData
 }) => {
+  const { mode: activeSheetMode, sheetName, googleSheetTitle } = useSheetMode();
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState('');
@@ -78,6 +81,31 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
   const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Filtered variables for search bar & category chips
+  const visibleVariables = useMemo(() => {
+    const q = tagSearchQuery.trim().toLowerCase();
+    return variables.filter((v) => {
+      if (q) {
+        const matchTag = v.tag.toLowerCase().includes(q);
+        const matchLabel = v.label.toLowerCase().includes(q);
+        const matchSample = (v.sample || '').toLowerCase().includes(q);
+        if (!matchTag && !matchLabel && !matchSample) return false;
+      }
+      if (tagColumnFilter === 'ALL') return true;
+      if (tagColumnFilter === 'STUDENT') return v.category === 'STUDENT';
+      if (tagColumnFilter === 'FINANCIAL') return v.category === 'FINANCIAL';
+      if (tagColumnFilter === 'SYSTEM') return v.category === 'SYSTEM';
+      if (tagColumnFilter === 'SHEET') {
+        return (
+          v.category === 'CUSTOM_SHEET' ||
+          v.category === 'NATIVE_SHEET' ||
+          v.category === 'GOOGLE_SHEET'
+        );
+      }
+      return true;
+    });
+  }, [variables, tagSearchQuery, tagColumnFilter]);
 
   // File Upload Handler for Invitation Card / Flyer
   const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,11 +216,13 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Load available dynamic variables from backend
+    const targetProvider = activeSheetMode === 'native' ? 'native_sheet' : 'google_sheets';
+
+    // Load available dynamic variables from backend strictly for active sheet mode
     const loadVariables = async () => {
       try {
         setLoadingVars(true);
-        const res = await api.getAutomationVariables();
+        const res = await api.getAutomationVariables(targetProvider);
         setVariables(res.variables || []);
       } catch (e) {
         console.error('Failed to load variables:', e);
@@ -201,11 +231,11 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
       }
     };
 
-    // Load dynamic Google Sheet filter columns and their distinct values
+    // Load dynamic filter columns strictly for active sheet mode
     const loadFilterOptions = async () => {
       try {
         setLoadingFilterOptions(true);
-        const res = await api.getAutomationFilterOptions();
+        const res = await api.getAutomationFilterOptions(targetProvider);
         const cols = res.columns || [];
         setFilterColumns(cols);
       } catch (e) {
@@ -215,14 +245,14 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
       }
     };
 
-    // Load student list for live preview
+    // Load student list for live preview strictly from the active sheet mode
     const loadStudents = async () => {
       try {
-        const feesRes = await api.getFees({ limit: 10 });
-        const list = feesRes.fees || [];
+        const feesRes = await api.getStudents({ limit: 10, sourceProvider: targetProvider });
+        const list = feesRes.students || [];
         setStudents(list);
         if (list.length > 0 && !previewStudentId) {
-          setPreviewStudentId(list[0].studentId || list[0].id);
+          setPreviewStudentId(list[0].id || list[0]._id);
         }
       } catch (e) {
         console.error('Failed to load students for preview:', e);
@@ -286,7 +316,7 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
       setActivePreset(null);
     }
     setErrorMsg(null);
-  }, [isOpen, initialData]);
+  }, [isOpen, activeSheetMode, initialData]);
 
   // Live Recipient Matching Count update
   useEffect(() => {
@@ -299,7 +329,8 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
         const res = await api.getAutomationMatchingCount({
           target: targetType,
           criteria: validCriteria,
-          feeStatus: selectedFeeStatus
+          feeStatus: selectedFeeStatus,
+          sourceProvider: activeSheetMode === 'native' ? 'native_sheet' : 'google_sheets'
         });
         setMatchingCount(res.matchingCount);
         setTotalEligible(res.totalEligible);
@@ -312,7 +343,7 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [isOpen, targetType, criteria, selectedFeeStatus]);
+  }, [isOpen, activeSheetMode, targetType, criteria, selectedFeeStatus]);
 
   // Live preview update
   useEffect(() => {
@@ -466,6 +497,7 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
       description: description.trim() || undefined,
       template: template.trim(),
       mediaUrl: mediaUrl.trim() || undefined,
+      sourceProvider: activeSheetMode === 'native' ? 'native_sheet' : 'google_sheets',
       audience: {
         target: targetType,
         criteria: validCriteria,
@@ -1370,7 +1402,7 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
                   value={template}
                   onChange={handleTemplateChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type your WhatsApp template here... Use {{variable}} to personalize with Google Sheet data"
+                  placeholder={`Type your WhatsApp template here... Use {{variable}} to personalize with ${activeSheetMode === 'native' ? 'Native AlphaSheet' : 'Google Sheet'} data`}
                   required
                   className="w-full p-3 bg-surface-container-low border border-outline-variant/35 rounded-xl text-sm font-body-md text-on-surface focus:outline-none focus:border-primary leading-relaxed font-normal"
                 />
@@ -1408,40 +1440,122 @@ export const CustomAutomationModal: React.FC<CustomAutomationModalProps> = ({
                 )}
               </div>
 
-              {/* Dynamic Google Sheets Variables Palette */}
-              <div className="p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant/25">
-                <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-2 flex items-center justify-between">
-                  <span>Available Google Sheet Variables (1-Click Insert)</span>
-                  <span className="font-normal text-[10px] text-outline">Click any tag to insert into message</span>
-                </div>
-                {loadingVars ? (
-                  <div className="py-2 text-xs text-on-surface-variant flex items-center gap-1.5">
-                    <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                    <span>Scanning Google Sheet headers and variables...</span>
+              {/* Dynamic Mode-Isolated Variables Palette with Live Search Bar */}
+              <div className="p-3 bg-surface-container-low/50 rounded-xl border border-outline-variant/30 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`material-symbols-outlined text-[16px] ${activeSheetMode === 'native' ? 'text-emerald-700 dark:text-emerald-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                      {activeSheetMode === 'native' ? 'table_chart' : 'cloud_sync'}
+                    </span>
+                    <span className="text-[11px] font-bold text-on-surface uppercase tracking-wider">
+                      {activeSheetMode === 'native'
+                        ? 'Available Native Sheet Variables (1-Click Insert)'
+                        : 'Available Google Sheet Variables (1-Click Insert)'}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold bg-surface-container text-on-surface-variant border border-outline-variant/20">
+                      {activeSheetMode === 'native' ? sheetName : (googleSheetTitle || 'Live Mirror')}
+                    </span>
                   </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                    {variables.map((v) => (
+                  <span className="font-normal text-[10px] text-outline">
+                    Click any tag to insert into template
+                  </span>
+                </div>
+
+                {/* Search Bar & Category Filter Pills */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[14px] text-outline">
+                      search
+                    </span>
+                    <input
+                      type="text"
+                      value={tagSearchQuery}
+                      onChange={(e) => setTagSearchQuery(e.target.value)}
+                      placeholder="Search dynamic variables (e.g. name, fee, due date, phone, roll)..."
+                      className="w-full h-7 pl-8 pr-7 bg-surface-container-lowest border border-outline-variant/35 rounded-lg text-xs font-body-sm text-on-surface focus:outline-none focus:border-primary placeholder:text-outline"
+                    />
+                    {tagSearchQuery && (
                       <button
-                        key={v.tag}
                         type="button"
-                        onClick={() => copyToClipboard(v.tag)}
-                        title={`Sample: ${v.sample} (Click to insert)`}
-                        className={`h-6 px-2 rounded-md font-data-mono text-[11px] flex items-center gap-1 border transition-all hover:scale-102 ${
-                          v.category === 'FINANCIAL'
-                            ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
-                            : v.category === 'CUSTOM_SHEET'
-                            ? 'bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-500/25 hover:bg-purple-500/20'
-                            : v.category === 'SYSTEM'
-                            ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 hover:bg-amber-500/20'
-                            : 'bg-primary/10 text-primary border-primary/25 hover:bg-primary/20'
+                        onClick={() => setTagSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface text-xs font-bold"
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Filter Pills */}
+                  <div className="flex items-center gap-1 text-[10px] shrink-0">
+                    {(['ALL', 'STUDENT', 'FINANCIAL', 'SHEET', 'SYSTEM'] as const).map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setTagColumnFilter(cat)}
+                        className={`px-2 py-1 rounded transition-colors font-medium cursor-pointer ${
+                          tagColumnFilter === cat
+                            ? 'bg-primary text-on-primary font-bold shadow-2xs'
+                            : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[12px]">add</span>
-                        <span>{v.tag}</span>
+                        {cat === 'SHEET' ? (activeSheetMode === 'native' ? 'Sheet Cols' : 'GSheet Cols') : cat}
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {loadingVars ? (
+                  <div className="py-3 text-xs text-on-surface-variant flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                    <span>
+                      {activeSheetMode === 'native'
+                        ? 'Scanning Native AlphaSheet columns and student data...'
+                        : 'Scanning Google Sheet columns and live student records...'}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                      {visibleVariables.map((v) => (
+                        <button
+                          key={v.tag}
+                          type="button"
+                          onClick={() => copyToClipboard(v.tag)}
+                          title={`Click to insert into template · Sample: ${v.sample}`}
+                          className={`h-6 px-2 rounded-md font-data-mono text-[11px] flex items-center gap-1 border transition-all hover:scale-102 cursor-pointer shadow-2xs ${
+                            copiedTag === v.tag
+                              ? 'bg-primary text-on-primary border-primary font-bold'
+                              : v.category === 'FINANCIAL'
+                              ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
+                              : v.category === 'CUSTOM_SHEET' || v.category === 'NATIVE_SHEET' || v.category === 'GOOGLE_SHEET'
+                              ? 'bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-500/25 hover:bg-purple-500/20'
+                              : v.category === 'SYSTEM'
+                              ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 hover:bg-amber-500/20'
+                              : 'bg-primary/10 text-primary border-primary/25 hover:bg-primary/20'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[12px]">
+                            {copiedTag === v.tag ? 'check' : 'add'}
+                          </span>
+                          <span>{copiedTag === v.tag ? 'Inserted!' : v.tag}</span>
+                        </button>
+                      ))}
+
+                      {visibleVariables.length === 0 && (
+                        <div className="py-2.5 text-center text-outline text-xs w-full">
+                          No dynamic variables matching "{tagSearchQuery}". Try "name", "fee", "due", or "phone".
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-outline border-t border-outline-variant/15 pt-1">
+                      <span>Showing {visibleVariables.length} of {variables.length} dynamic tags</span>
+                      <span className="font-mono">
+                        Mode: {activeSheetMode === 'native' ? 'Native AlphaSheet' : 'Google Sheets'}
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

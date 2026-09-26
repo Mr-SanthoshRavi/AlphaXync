@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger';
 export async function getFees(req: Request, res: Response, next: NextFunction) {
   try {
     const institutionId = new Types.ObjectId(req.user!.institutionId);
-    const { status, search, page = 1, limit = 25 } = req.query;
+    const { status, search, page = 1, limit = 25, sourceProvider } = req.query;
 
     const filter: any = { institutionId };
     if (status && status !== 'ALL') {
@@ -26,9 +26,13 @@ export async function getFees(req: Request, res: Response, next: NextFunction) {
 
     // Check if institution's spreadsheet is actively linked & connected
     const connection = await DataConnection.findOne({ institutionId, provider: 'google_sheets' });
-    const isSourceActive = connection && connection.status === 'CONNECTED' && !!connection.fileReference;
+    const isGoogleActive = Boolean(connection && connection.status === 'CONNECTED' && !!connection.fileReference);
 
-    if (!isSourceActive) {
+    const isNativeOnly = sourceProvider === 'native_sheet' || sourceProvider === 'native';
+    const isGoogleOnly = sourceProvider === 'google_sheets';
+
+    // If strictly requesting Google Sheets fees but Google Sheets is not active:
+    if (isGoogleOnly && !isGoogleActive) {
       return res.status(200).json({
         success: true,
         data: {
@@ -45,7 +49,17 @@ export async function getFees(req: Request, res: Response, next: NextFunction) {
       });
     }
 
-    const activeStudents = await Student.find({ institutionId, status: 'ACTIVE' }).select('_id');
+    // Filter students by sourceProvider
+    const studentFilter: any = { institutionId, status: 'ACTIVE' };
+    if (isNativeOnly) {
+      studentFilter.sourceProvider = { $in: ['native_sheet', 'excel_import', 'manual'] };
+    } else if (isGoogleOnly) {
+      studentFilter.sourceProvider = 'google_sheets';
+    } else if (!isGoogleActive) {
+      studentFilter.sourceProvider = { $ne: 'google_sheets' };
+    }
+
+    const activeStudents = await Student.find(studentFilter).select('_id');
     const activeStudentIds = activeStudents.map((s) => s._id);
     filter.studentId = { $in: activeStudentIds };
 
